@@ -261,9 +261,6 @@ export default function LoginPage() {
 
           {/* Footer Section */}
           <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-600 dark:text-gray-400 space-y-3">
-            <p className="font-semibold text-gray-700 dark:text-gray-300">
-              College of Information Technology Education • CITE Department
-            </p>
             <p className="pt-2">
               © 2026 College of Information Technology Education. All rights reserved.
             </p>
