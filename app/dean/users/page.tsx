@@ -22,7 +22,7 @@ export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'student' as User['role'], course: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'student' as User['role'], course: '', year_level: 0, section: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -60,7 +60,7 @@ export default function Users() {
 
   const openAdd = () => {
     setEditingUser(null);
-    setForm({ name: '', email: '', role: 'student', course: '' });
+    setForm({ name: '', email: '', role: 'student', course: '', year_level: 0, section: '' });
     setIsModalOpen(true);
   };
 
@@ -70,7 +70,9 @@ export default function Users() {
       name: user.name || '', 
       email: user.email || '', 
       role: user.role,
-      course: user.course || ''
+      course: user.course || '',
+      year_level: (user as any).year_level || 0,
+      section: (user as any).section || ''
     });
     setIsModalOpen(true);
   };
@@ -92,6 +94,8 @@ export default function Users() {
         email: form.email,
         role: form.role,
         course: form.course || null,
+        year_level: form.year_level || null,
+        section: form.section || null,
       };
       setUsers((prev) => [newUser, ...prev]);
       alert('User created successfully!');
@@ -326,6 +330,24 @@ export default function Users() {
                     </span>
                   ),
                 },
+                {
+                  key: 'year_level' as any,
+                  label: 'Year',
+                  render: (_: any, user: any) => (
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {user.year_level || 'N/A'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'section' as any,
+                  label: 'Section',
+                  render: (_: any, user: any) => (
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {user.section || 'N/A'}
+                    </span>
+                  ),
+                },
 
                 {
                   key: 'actions' as any,
@@ -402,20 +424,57 @@ export default function Users() {
           </div>
 
 
-          {form.role === 'student' && (
-            <div>
-              <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Course
+        {form.role === 'student' && (
+            <div className="space-y-4">
+              <div>
+                <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Course
+                </div>
+                <select
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={form.course}
+                  onChange={(e) => setForm({ ...form, course: e.target.value })}
+                >
+                  <option value="">Select course</option>
+                  <option value="BSIT">BSIT</option>
+                  <option value="BSEMC">BSEMC</option>
+                </select>
               </div>
-              <select
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                value={form.course}
-                onChange={(e) => setForm({ ...form, course: e.target.value })}
-              >
-                <option value="">Select course</option>
-                <option value="BSIT">BSIT</option>
-                <option value="BSEMC">BSEMC</option>
-              </select>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Year Level
+                  </div>
+                  <select
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={form.year_level || 0}
+                    onChange={(e) => setForm({ ...form, year_level: Number(e.target.value) })}
+                  >
+                    <option value={0}>Select year</option>
+                    <option value={1}>1st Year</option>
+                    <option value={2}>2nd Year</option>
+                    <option value={3}>3rd Year</option>
+                    <option value={4}>4th Year</option>
+                  </select>
+                </div>
+                <div>
+                  <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Section
+                  </div>
+                  <select
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={form.section || ''}
+                    onChange={(e) => setForm({ ...form, section: e.target.value })}
+                  >
+                    <option value="">Select section</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
