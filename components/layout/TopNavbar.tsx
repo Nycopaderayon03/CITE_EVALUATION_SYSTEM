@@ -61,13 +61,6 @@ export function TopNavbar() {
                   },
                 },
                 {
-                  label: 'Settings',
-                  value: 'settings',
-                  onClick: () => {
-                    router.push(`/${user.role}/profile`); // Fallback settings to profile
-                  },
-                },
-                {
                   label: 'Logout',
                   value: 'logout',
                   onClick: logout,
