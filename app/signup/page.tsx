@@ -86,7 +86,7 @@ function SignUpContent() {
       return 'You must agree to the terms and conditions';
     }
 
-    if (!captchaToken) {
+    if (process.env.NODE_ENV !== 'development' && !captchaToken) {
       return 'Please verify that you are not a robot by completing the CAPTCHA.';
     }
 
@@ -448,11 +448,13 @@ function SignUpContent() {
 
                 {/* Google reCAPTCHA */}
                 <div className="md:col-span-2 flex justify-center w-full py-2">
+                  {process.env.NODE_ENV !== 'development' && (
                   <ReCAPTCHA
                     sitekey="6Ld6eJMsAAAAABdiQZuwfYyWptTppshpF3ufaA7b"
                     type="audio"
                     onChange={(token) => setCaptchaToken(token)}
                   />
+                )}
                 </div>
 
                 {/* Sign Up Button */}

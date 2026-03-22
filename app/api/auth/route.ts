@@ -11,6 +11,7 @@ function getClientIp(request: NextRequest): string {
 }
 
 async function verifyCaptcha(token: string): Promise<boolean> {
+  if (process.env.NODE_ENV === 'development') return true;
   if (!token) return false;
   try {
     const secret = process.env.RECAPTCHA_SECRET_KEY as string;

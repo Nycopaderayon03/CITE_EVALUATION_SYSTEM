@@ -41,7 +41,7 @@ export default function LoginPage() {
         throw new Error('Please enter both email and password');
       }
 
-      if (!captchaToken) {
+      if (process.env.NODE_ENV !== 'development' && !captchaToken) {
         throw new Error('Please verify that you are not a robot by completing the CAPTCHA.');
       }
 
@@ -231,12 +231,14 @@ export default function LoginPage() {
 
               {/* Google reCAPTCHA */}
               <div className="flex justify-center items-center w-full py-2">
-                <ReCAPTCHA
+                {process.env.NODE_ENV !== 'development' && (
+                  <ReCAPTCHA
                   sitekey="6Ld6eJMsAAAAABdiQZuwfYyWptTppshpF3ufaA7b"
                   type="audio"
                   onChange={(token) => setCaptchaToken(token)}
                   theme={theme === 'dark' ? 'dark' : 'light'}
-                />
+                  />
+                )}
               </div>
 
               {/* Login Button */}
