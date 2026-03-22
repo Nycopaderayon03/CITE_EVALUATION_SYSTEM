@@ -138,7 +138,7 @@ export default function PeerEvaluation() {
             content: comment,
             rating: Math.round(avgRating * 2) / 2,
           }),
-        }).catch(() => {});
+        }).catch((err) => { console.error('Error:', err); });
       }
 
       // update local state to reflect submission

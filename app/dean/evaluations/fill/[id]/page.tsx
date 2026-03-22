@@ -162,7 +162,7 @@ export default function DeanEvaluationFill() {
             content: comment,
             rating: Math.round(avgRating * 2) / 2,
           }),
-        }).catch(() => {});
+        }).catch((err) => { console.error('Error:', err); });
       }
 
       setIsSubmitted(true);

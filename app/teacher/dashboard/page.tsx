@@ -39,7 +39,7 @@ export default function TeacherDashboard() {
     fetch(`${base}/evaluations/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    }).catch(() => {});
+    }).catch((err) => { console.error('Error:', err); });
   }, []);
 
   const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses');
@@ -70,7 +70,7 @@ export default function TeacherDashboard() {
           })));
         }
       })
-      .catch(() => {});
+      .catch((err) => { console.error('Error:', err); });
 
     // Evaluations received (where this teacher is the evaluatee)
     fetch(`${base}/evaluations?role=evaluatee`, { headers })
@@ -78,7 +78,7 @@ export default function TeacherDashboard() {
       .then(data => {
         if (data.success) setReceivedEvals(data.evaluations || []);
       })
-      .catch(() => {})
+      .catch((err) => { console.error('Error:', err); })
       .finally(() => setReceivedEvalsLoading(false));
   }, [teacherId]);
 

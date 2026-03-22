@@ -1,7 +1,7 @@
 
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 export interface DecodedToken {
   userId: string;

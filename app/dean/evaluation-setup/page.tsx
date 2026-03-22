@@ -166,7 +166,7 @@ export default function EvaluationSetupPage() {
     })
       .then(r => r.json())
       .then(data => { if (data.success) setDrafts(data.periods || []); })
-      .catch(() => {})
+      .catch((err) => { console.error('Error:', err); })
       .finally(() => setDraftsLoading(false));
   }, []);
 
@@ -473,7 +473,7 @@ export default function EvaluationSetupPage() {
             collapsed: false,
           }]);
         }
-      } catch {}
+      } catch (err) { console.error('Error:', err); }
     }
     setNamePrefix(restoredPrefix);
 
@@ -500,7 +500,7 @@ export default function EvaluationSetupPage() {
           if (period) loadPeriodData(period);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.error('Error:', err); })
       .finally(() => setEditLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editPeriodId]);

@@ -131,7 +131,7 @@ export default function Evaluations() {
   const refreshAllEvals = () => {
     fetchApi('/evaluations')
       .then(data => setAllEvals(data.evaluations || []))
-      .catch(() => { });
+      .catch((err) => { console.error('Error:', err); });
   };
 
   useEffect(() => {

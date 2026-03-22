@@ -24,7 +24,7 @@ export default function StudentDashboard() {
     fetch(`${base}/evaluations/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    }).catch(() => {});
+    }).catch((err) => { console.error('Error:', err); });
   }, []);
 
   const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations?type=teacher');

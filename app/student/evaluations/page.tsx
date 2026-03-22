@@ -219,7 +219,7 @@ export default function StudentEvaluations() {
             content: comment,
             rating: Math.round(avgRating * 2) / 2,
           }),
-        }).catch(() => {});
+        }).catch((err) => { console.error('Error:', err); });
       }
 
       setIsSubmitted(true);

@@ -19,7 +19,7 @@ function getAuthToken(request: NextRequest): string | null {
 async function verifyToken(token: string) {
   try {
     const jwtLib = await loadJWT();
-    return jwtLib.verify(token, process.env.JWT_SECRET || 'secret');
+    return jwtLib.verify(token, process.env.JWT_SECRET as string);
   } catch {
     return null;
   }
