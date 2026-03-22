@@ -1,31 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
+import { verifyToken, getAuthToken } from '@/lib/auth';
 
-let jwt: any = null;
-async function loadJWT() {
-  if (!jwt) {
-    const jwtModule = await import('jsonwebtoken');
-    jwt = jwtModule.default || jwtModule;
-  }
-  return jwt;
-}
 
-function getAuthToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  return authHeader.substring(7);
-}
-
-async function verifyToken(token: string) {
-  try {
-    const jwtLib = await loadJWT();
-    return jwtLib.verify(token, process.env.JWT_SECRET as string);
-  } catch (err) {
-    if (err) console.debug('JWT error');
-    return null;
-  }
-}
 
 // GET /api/comments?entity_type=course&entity_id=course-1
 export async function GET(request: NextRequest) {

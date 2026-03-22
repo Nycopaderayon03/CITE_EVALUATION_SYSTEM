@@ -37,3 +37,14 @@ export function verifyToken(token: string): DecodedToken | null {
     return null;
   }
 }
+
+/**
+ * Extracts bearer token from NextRequest
+ */
+export function getAuthToken(request: any): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.substring(7);
+}

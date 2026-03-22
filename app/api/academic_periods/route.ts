@@ -1,34 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
+import { verifyToken, getAuthToken } from '@/lib/auth';
 
-let jwt: any = null;
 
-async function loadJWT() {
-  if (!jwt) {
-    const jwtModule = await import('jsonwebtoken');
-    jwt = jwtModule.default || jwtModule;
-  }
-  return jwt;
-}
-
-function getAuthToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.substring(7);
-}
-
-async function verifyToken(token: string) {
-  try {
-    const jwtLib = await loadJWT();
-    const decoded = jwtLib.verify(token, process.env.JWT_SECRET as string);
-    return decoded;
-  } catch (error) {
-    if (error) console.debug('JWT error');
-    return null;
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
