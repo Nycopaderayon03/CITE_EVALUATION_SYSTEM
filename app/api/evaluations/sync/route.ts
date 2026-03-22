@@ -125,7 +125,8 @@ export async function POST(request: NextRequest) {
           : period.semester === 'Summer' ? 3
           : Number.parseInt(period.semester) || null;
 
-        const { curriculum } = await import('@/data/curriculum');
+        const { buildCurriculum } = await import('@/app/api/curriculum/route');
+        const curriculum = await buildCurriculum();
 
         for (const group of groups) {
           const program = group.program;

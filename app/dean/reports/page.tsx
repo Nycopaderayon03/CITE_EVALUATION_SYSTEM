@@ -9,26 +9,77 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Download, FileText, Trash2, Calendar, Search, BarChart2, Eye } from 'lucide-react';
 import { useFetch } from '@/hooks';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-// generate a CSV file containing the data
-const generateCSVReport = (filename: string, data: any[], headers: string[]) => {
+// generate an organized PDF file with a template header
+const generatePDFReport = (title: string, filename: string, data: any[], headers?: string[]) => {
   try {
-    const csv = [
-      headers.join(','),
-      ...data.map(d => headers.map(h => `"${String((d as any)[h] ?? '').replace(/"/g, '""')}"`).join(',')),
-    ].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    if (!filename.toLowerCase().endsWith('.csv')) filename += '.csv';
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF();
+    const reportDate = new Date().toLocaleString();
+    
+    // Add Header
+    doc.setFontSize(16);
+    doc.setTextColor(0);
+    doc.text('COLLEGE EVALUATION SYSTEM', 14, 20);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(50);
+    doc.text(title, 14, 30);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated On: ${reportDate}`, 14, 38);
+    
+    let currentY = 45;
+
+    if (headers && headers.length > 0) {
+      // Single table mode
+      const head = [headers.map(h => h.toUpperCase().replace(/_/g, ' '))];
+      const body = data.map(d => headers.map(h => {
+        let val = typeof d === 'object' && d !== null ? d[h] : '';
+        return String(val ?? '');
+      }));
+      
+      autoTable(doc, {
+        head: head,
+        body: body,
+        startY: currentY,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+    } else {
+      // Multiple sections mode
+      data.forEach(sec => {
+        // Section title
+        doc.setFontSize(11);
+        doc.setTextColor(0);
+        doc.text(sec.title.toUpperCase(), 14, currentY);
+        currentY += 4;
+        
+        const head = [sec.headers.map((h:string) => h.toUpperCase().replace(/_/g, ' '))];
+        const body = sec.data.map((d:any) => sec.headers.map((h:string) => {
+          let val = d;
+          h.split('.').forEach((k:string) => { val = val?.[k] }); 
+          return String(val ?? '');
+        }));
+        
+        autoTable(doc, {
+          head: head,
+          body: body,
+          startY: currentY,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [100, 100, 100] },
+        });
+        
+        currentY = (doc as any).lastAutoTable.finalY + 12;
+      });
+    }
+
+    if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+    doc.save(filename);
   } catch (e) {
-    alert('Failed to generate report');
+    console.error('PDF error', e);
   }
 };
 
@@ -59,74 +110,134 @@ const ReportsComponent = () => {
     return [];
   });
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterDept, setFilterDept] = useState('all');
-  const [filterInstructor, setFilterInstructor] = useState('all');
+
 
   const [previewReportId, setPreviewReportId] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
 
+  const getDepartmentSections = () => {
+    const dept = analyticsData?.analytics?.performanceTrend || [];
+    const topInst = analyticsData?.analytics?.topInstructors || [];
+    const statRows = [
+      { metric: 'Total Evaluations', value: analyticsData?.analytics?.totalEvaluations || 0 },
+      { metric: 'Submitted Evaluations', value: analyticsData?.analytics?.submittedEvaluations || 0 },
+      { metric: 'Completion Rate', value: (analyticsData?.analytics?.evaluationRate || 0) + '%' }
+    ];
+    
+    // Dynamic actionable insight based directly on completion rate
+    const evalRate = analyticsData?.analytics?.evaluationRate || 0;
+    const improvementTarget = evalRate < 60 ? 'Increase student participation.' : 'Maintain strong engagement.';
+
+    return [
+      { title: 'Performance Trends Over Time', headers: ['period', 'score'], data: dept },
+      { title: 'Top Performing Instructors', headers: ['rank', 'instructor.name', 'overallScore'], data: topInst },
+      { title: 'Improvement Areas', headers: ['area', 'action'], data: [{ area: 'Evaluation Completion', action: improvementTarget }] },
+      { title: 'Completion Statistics', headers: ['metric', 'value'], data: statRows },
+    ];
+  };
+
   const handleDepartmentReport = async () => {
     setGenerating('department');
-    const dept = analyticsData?.analytics?.performanceTrend || [];
-    generateCSVReport(
-      `department-report-${new Date().toISOString().split('T')[0]}.csv`,
-      dept,
-      ['period', 'score']
+    generatePDFReport(
+      'Department Performance Report',
+      `department-report-${new Date().toISOString().split('T')[0]}.pdf`,
+      getDepartmentSections()
     );
     addToHistory('Department Report ' + new Date().toLocaleDateString(), 'department');
     setGenerating(null);
   };
 
   const previewDepartmentReport = () => {
-    const dept = analyticsData?.analytics?.performanceTrend || [];
-    previewReport('Department Report Preview', ['period', 'score'], dept);
+    previewReport('Department Report Preview', [], getDepartmentSections());
   };
 
-  const handleInstructorReport = async () => {
-    setGenerating('instructor');
+  const getInstructorSections = () => {
     const instr = analyticsData?.analytics?.topInstructors || [];
     const rows = instr.map((r: any) => ({
       rank: r.rank,
       name: r.instructor?.name,
       overallScore: r.overallScore,
     }));
-    generateCSVReport(
-      `instructor-report-${new Date().toISOString().split('T')[0]}.csv`,
-      rows,
-      ['rank', 'name', 'overallScore']
+    
+    const avgScore = analyticsData?.analytics?.averageScore || 0;
+
+    return [
+      { title: 'Individual Ratings & Rankings', headers: ['rank', 'name', 'overallScore'], data: rows },
+      { title: 'Strength Areas', headers: ['metric', 'value'], data: [
+        { metric: 'Highest Achieving Rating', value: rows.length > 0 ? rows[0].overallScore : 'N/A' },
+        { metric: 'Global System Average', value: avgScore.toFixed(2) }
+      ]},
+      { title: 'Areas for Improvement', headers: ['metric', 'value'], data: [
+        { metric: 'Lowest Measured Rating', value: rows.length > 0 ? rows[rows.length - 1].overallScore : 'N/A' }
+      ]}
+    ];
+  };
+
+  const handleInstructorReport = async () => {
+    setGenerating('instructor');
+    generatePDFReport(
+      'Instructor Ranking Report',
+      `instructor-report-${new Date().toISOString().split('T')[0]}.pdf`,
+      getInstructorSections()
     );
     addToHistory('Instructor Report ' + new Date().toLocaleDateString(), 'instructor');
     setGenerating(null);
   };
 
   const previewInstructorReport = () => {
-    const instr = analyticsData?.analytics?.topInstructors || [];
-    const rows = instr.map((r: any) => ({
-      rank: r.rank,
-      name: r.instructor?.name,
-      overallScore: r.overallScore,
-    }));
-    previewReport('Instructor Report Preview', ['rank', 'name', 'overallScore'], rows);
+    previewReport('Instructor Report Preview', [], getInstructorSections());
+  };
+
+  const getCourseSections = () => {
+    const courseData = evalData?.evaluations || [];
+    const grouped: Record<string, any> = {};
+    
+    courseData.forEach((c: any) => {
+      const id = c.course_id;
+      if (!grouped[id]) {
+        grouped[id] = { course_id: id, course_name: c.course_name || `Course #${id}`, responses_count: 0 };
+      }
+      const r = Array.isArray(c.responses) ? c.responses.length : (c.responses || 0);
+      grouped[id].responses_count += (r > 0 ? 1 : (c.status === 'submitted' || c.status === 'completed' ? 1 : 0));
+    });
+
+    const formattedCourseData = Object.values(grouped);
+    const totalResponses = formattedCourseData.reduce((acc: number, c: any) => acc + c.responses_count, 0);
+    const uniqueCourses = formattedCourseData.length;
+    
+    let engagementLevel = 'N/A';
+    if (uniqueCourses > 0) {
+        const ratio = totalResponses / uniqueCourses;
+        engagementLevel = ratio > 15 ? 'Excellent' : ratio > 5 ? 'Good' : 'Needs Focus';
+    }
+
+    return [
+      { title: 'Class Feedback Summary', headers: ['course_id', 'course_name', 'responses_count'], data: formattedCourseData },
+      { title: 'System Enrollment Data', headers: ['metric', 'value'], data: [
+        { metric: 'Total Active Courses Evaluated', value: uniqueCourses },
+        { metric: 'Total Distributed Feedback', value: totalResponses }
+      ]},
+      { title: 'Engagement Metrics', headers: ['metric', 'status'], data: [
+        { metric: 'Real-time Student Engagement', status: engagementLevel }
+      ]}
+    ];
   };
 
   const handleCourseReport = async () => {
     setGenerating('course');
-    const courseData = evalData?.evaluations || [];
-    generateCSVReport(
-      `course-report-${new Date().toISOString().split('T')[0]}.csv`,
-      courseData,
-      ['course_id','course_name','responses']
+    generatePDFReport(
+      'Course Evaluation Summary Report',
+      `course-report-${new Date().toISOString().split('T')[0]}.pdf`,
+      getCourseSections()
     );
     addToHistory('Course Report ' + new Date().toLocaleDateString(), 'course');
     setGenerating(null);
   };
 
   const previewCourseReport = () => {
-    const courseData = evalData?.evaluations || [];
-    previewReport('Course Report Preview', ['course_id','course_name','responses'], courseData);
+    previewReport('Course Report Preview', [], getCourseSections());
   };
 
 
@@ -139,13 +250,27 @@ const ReportsComponent = () => {
   };
 
   const previewReport = (title: string, headers: string[], rows: any[]) => {
-    const csv = [
-      headers.join(','),
-      ...rows.map((r) => headers.map((h) => `"${String((r as any)[h] ?? '')}"`).join(',')),
-    ].join('\n');
+    let csv = '';
+    if (headers && headers.length > 0) {
+      csv = [
+        headers.join(','),
+        ...rows.map((r) => headers.map((h) => `"${String((r as any)[h] ?? '')}"`).join(',')),
+      ].join('\n');
+    } else {
+      csv = rows.map(sec => {
+        const secTitle = `--- ${sec.title.toUpperCase()} ---`;
+        const csvColumns = sec.headers.join(',');
+        const csvRows = sec.data.map((d:any) => sec.headers.map((h:string) => {
+          let val = d;
+          h.split('.').forEach(k => { val = val?.[k] });
+          return `"${String(val ?? '')}"`;
+        }).join(',')).join('\n');
+        return `${secTitle}\n${csvColumns}\n${csvRows}\n`;
+      }).join('\n');
+    }
     setPreviewReportId(title);
     setPreviewContent(csv);
-    setPreviewHeaders(headers);
+    setPreviewHeaders(headers || []);
     setPreviewRows(rows);
   };
 
@@ -170,7 +295,7 @@ const ReportsComponent = () => {
   const completedEvals = evalData?.evaluations?.filter((e: any) =>
     e.status === 'submitted' ||
     e.status === 'completed' ||
-    (e.responses && e.responses > 0)
+    (Array.isArray(e.responses) ? e.responses.length > 0 : e.responses > 0)
   ).length;
   const completionRateCalc = totalEvals
     ? Math.round((completedEvals / totalEvals) * 100)
@@ -190,125 +315,13 @@ const ReportsComponent = () => {
         </p>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-shadow duration-150">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <span>📊</span> Total Evaluations
-                </p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{totalEvals}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Evaluations submitted</p>
-              </div>
-              <Badge variant="secondary">{totalEvals > 0 ? 'Live' : 'Empty'}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow duration-150">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <span>📈</span> Completion Rate
-                </p>
-                <p className="text-3xl font-bold text-green-600">{completionRateCalc}%</p>
-                <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-green-500"
-                    style={{ width: `${Math.min(100, Math.max(0, completionRateCalc))}%` }}
-                  />
-                </div>
-              </div>
-              <Badge variant={completionRateCalc > 80 ? 'success' : completionRateCalc > 50 ? 'warning' : 'destructive'}>
-                {completionRateCalc > 80 ? 'Good' : completionRateCalc > 50 ? 'Ok' : 'Low'}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow duration-150">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <span>⭐</span> Avg Score
-                </p>
-                <p className="text-3xl font-bold text-blue-600">{avgScoreCalc.toFixed(1)}/5.0</p>
-                <div className="flex items-center gap-1 mt-1">
-                  {Array.from({ length: 5 }).map((_, idx) => (
-                    <span key={idx} className={idx < Math.round(avgScoreCalc) ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}>
-                      ★
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <Badge variant="success">{avgScoreCalc >= 4 ? 'Great' : avgScoreCalc >= 3 ? 'Good' : 'Needs work'}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow duration-150">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <span>📄</span> Reports Generated
-                </p>
-                <p className="text-3xl font-bold text-purple-600">{reportHistory.length}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Recent downloads</p>
-              </div>
-              <Badge variant="secondary">{reportHistory.length > 0 ? 'Active' : 'None'}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-
-      {/* Search + Filters + Quick Actions */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start justify-between">
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="relative col-span-1 md:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <Input
-              placeholder="Search reports..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <select
-            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            value={filterDept}
-            onChange={(e) => setFilterDept(e.target.value)}
-          >
-            <option value="all">All Departments</option>
-            {(analyticsData?.analytics?.departments || []).map((dept: string) => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
-          <select
-            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            value={filterInstructor}
-            onChange={(e) => setFilterInstructor(e.target.value)}
-          >
-            <option value="all">All Instructors</option>
-            {(analyticsData?.analytics?.instructors || []).map((ins: string) => (
-              <option key={ins} value={ins}>{ins}</option>
-            ))}
-          </select>
-
-        </div>
-
-      </div>
-
-      {/* Report Types */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Generate Reports</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="hover:shadow-lg transition-shadow duration-150">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3 space-y-8">
+          {/* Report Types */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Generate Reports</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="hover:shadow-lg transition-shadow duration-150">
             <CardHeader>
               <CardTitle>🏢 Department Report</CardTitle>
               <CardDescription>Overall department performance summary</CardDescription>
@@ -455,6 +468,68 @@ const ReportsComponent = () => {
           </div>
         </CardContent>
       </Card>
+      </div>
+
+        <div className="lg:col-span-1 space-y-4 flex flex-col">
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span>📈</span> Completion Rate
+                  </p>
+                  <p className="text-3xl font-bold text-green-600">{completionRateCalc}%</p>
+                  <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500"
+                      style={{ width: `${Math.min(100, Math.max(0, completionRateCalc))}%` }}
+                    />
+                  </div>
+                </div>
+                <Badge variant={completionRateCalc > 80 ? 'success' : completionRateCalc > 50 ? 'warning' : 'destructive'}>
+                  {completionRateCalc > 80 ? 'Good' : completionRateCalc > 50 ? 'Ok' : 'Low'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span>⭐</span> Avg Score
+                  </p>
+                  <p className="text-3xl font-bold text-blue-600">{avgScoreCalc.toFixed(1)}/5.0</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {Array.from({ length: 5 }).map((_, idx) => (
+                      <span key={idx} className={idx < Math.round(avgScoreCalc) ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}>
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <Badge variant="success">{avgScoreCalc >= 4 ? 'Great' : avgScoreCalc >= 3 ? 'Good' : 'Needs work'}</Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span>📄</span> Reports Generated
+                  </p>
+                  <p className="text-3xl font-bold text-purple-600">{reportHistory.length}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Recent downloads</p>
+                </div>
+                <Badge variant="secondary">{reportHistory.length > 0 ? 'Active' : 'None'}</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Modal
         isOpen={!!previewReportId}
@@ -464,7 +539,7 @@ const ReportsComponent = () => {
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            This is a preview of the report content. Click "Download" to save the generated CSV.
+            This is a preview of the report content. Click "Download" to save the generated PDF.
           </p>
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 overflow-auto max-h-72">
             <pre className="whitespace-pre-wrap text-xs text-gray-800 dark:text-gray-200">{previewContent || 'No preview data available.'}</pre>
@@ -481,10 +556,11 @@ const ReportsComponent = () => {
               variant="primary"
               onClick={() => {
                 if (!previewReportId) return;
-                generateCSVReport(
-                  `${previewReportId.toLowerCase().replace(/\s+/g, '-')}.csv`,
+                generatePDFReport(
+                  previewReportId || 'Generated Report',
+                  `${previewReportId.toLowerCase().replace(/\s+/g, '-')}.pdf`,
                   previewRows,
-                  previewHeaders
+                  previewHeaders.length > 0 ? previewHeaders : undefined
                 );
               }}
               className="gap-2"

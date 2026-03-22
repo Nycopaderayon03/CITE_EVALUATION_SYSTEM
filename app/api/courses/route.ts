@@ -47,42 +47,46 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const url = new URL(request.url);
+    const isHistory = url.searchParams.get('history') === 'true';
+
     // Get courses for the user based on their role
     let courses: any;
     
     if (decoded.role === 'teacher') {
       // Teachers see their own courses
       courses = await query(
-        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id,
+        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id, c.is_archived,
                 COUNT(e.id) as student_count
          FROM courses c
          LEFT JOIN course_enrollments e ON c.id = e.course_id
-         WHERE c.teacher_id = ?
+         WHERE c.teacher_id = ? ${isHistory ? '' : 'AND c.is_archived = 0'}
          GROUP BY c.id`,
         [decoded.userId]
       );
     } else if (decoded.role === 'student') {
       // Students see their enrolled courses
       courses = await query(
-        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id,
+        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id, c.is_archived,
                 u.name as teacher_name
          FROM courses c
          INNER JOIN course_enrollments e ON c.id = e.course_id
          LEFT JOIN users u ON c.teacher_id = u.id
-         WHERE e.student_id = ?
+         WHERE e.student_id = ? ${isHistory ? '' : 'AND c.is_archived = 0'}
          GROUP BY c.id`,
         [decoded.userId]
       );
     } else if (decoded.role === 'dean') {
       // Dean sees all courses
       courses = await query(
-        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id,
+        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id, c.is_archived,
                 c.course_program, c.year_level,
                 u.name as teacher_name,
                 COUNT(e.id) as student_count
          FROM courses c
          LEFT JOIN users u ON c.teacher_id = u.id
          LEFT JOIN course_enrollments e ON c.id = e.course_id
+         ${isHistory ? '' : 'WHERE c.is_archived = 0'}
          GROUP BY c.id`
       );
     }
@@ -101,6 +105,7 @@ export async function GET(request: NextRequest) {
       student_count: c.student_count || 0,
       course_program: c.course_program || null,
       year_level: c.year_level || null,
+      is_archived: c.is_archived || 0,
     }));
 
     return NextResponse.json({

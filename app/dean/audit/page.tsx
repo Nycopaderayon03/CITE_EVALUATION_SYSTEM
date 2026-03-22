@@ -62,39 +62,9 @@ export default function AuditLogs() {
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Activities</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{logs.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Logins</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {logs.filter((l: any) => String(l.action ?? '').toLowerCase() === 'login').length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Submissions</p>
-              <p className="text-3xl font-bold text-green-600">
-                {logs.filter((l: any) => String(l.action ?? '').toLowerCase() === 'submit').length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <Card>
         <CardHeader className="border-b">
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>All system activities sorted by timestamp</CardDescription>
@@ -168,8 +138,31 @@ export default function AuditLogs() {
               data={filteredLogs.map((log: any) => ({ ...log, id: log.id }))}
             />
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        </div>
+
+        <div className="lg:col-span-1 space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Activities</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{logs.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Logins</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {logs.filter((l: any) => String(l.action ?? '').toLowerCase() === 'login').length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -122,3 +122,19 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Native Calendar Popup Increaser Hack */
+.calendar-lg-popup {
+  font-size: 1.5rem !important; /* Forces the native popup calendar to scale up globally by 1.5x on Webkit */
+}
+
+.calendar-lg-popup::-webkit-datetime-edit {
+  font-size: 1rem !important; /* Re-clamps the text inside the actual form input back down to normal text-sm/base standards */
+  padding: 0.25rem 0;
+}
+
+.calendar-lg-popup::-webkit-calendar-picker-indicator {
+  transform: scale(1.3); /* Enlarges the clickable icon */
+  cursor: pointer;
+  margin-left: 0.5rem;
+}

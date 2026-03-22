@@ -12,8 +12,6 @@ import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { BookOpen, AlertCircle, CheckCircle, Clock, Download, FileText, Share2, BarChart3, Target } from 'lucide-react';
 import Link from 'next/link';
 import { useFetch } from '@/hooks';
-import { downloadPdf } from '@/utils/helpers';
-
 export default function StudentDashboard() {
   const router = useRouter();
   const { user } = useAuth();
@@ -65,23 +63,6 @@ export default function StudentDashboard() {
   // Use enrolled courses count for display, but completion rate based on evaluations
   const enrolledCount = coursesData?.courses?.length || 0;
 
-  const downloadEvaluationReport = () => {
-    try {
-      const rows = evaluations.map((e: any) => ({
-        course: e.course_name || e.course?.name,
-        instructor: e.evaluatee_name || e.evaluatee?.name,
-        status: e.status,
-        date: e.submitted_at ? new Date(e.submitted_at).toLocaleDateString() : '-'
-      }));
-      
-      const header = ['Course', 'Instructor', 'Status', 'Date'];
-      const csv = [header.join(','), ...rows.map((r: any) => [r.course, r.instructor, r.status, r.date].join(','))].join('\n');
-      downloadPdf(csv, `evaluation-report-${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (e) {
-      alert('Failed to download report');
-    }
-  };
-
   const handleStartEvaluation = () => {
     router.push('/student/evaluations');
   };
@@ -106,54 +87,9 @@ export default function StudentDashboard() {
               : 'No active evaluation period'}
           </p>
         </div>
-        <Button variant="outline" onClick={downloadEvaluationReport} className="gap-2">
-          <Download className="w-4 h-4" />
-          Export Report
-        </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <DashboardCard
-          title="Completed"
-          value={<AnimatedCounter endValue={completedCount} />}
-          footer={`${completedCount} of ${totalCount} evaluations`}
-          icon={<CheckCircle className="w-6 h-6" />}
-          color="green"
-          trend={completedCount}
-        />
-        <DashboardCard
-          title="Pending"
-          value={<AnimatedCounter endValue={pendingCount} />}
-          footer={`${pendingCount} evaluations remaining`}
-          icon={<AlertCircle className="w-6 h-6" />}
-          color="red"
-          trend={-pendingCount}
-        />
-        <DashboardCard
-          title="Completion Rate"
-          value={<AnimatedCounter endValue={completionRate} suffix="%" />}
-          footer={`Progress: ${completionRate}%`}
-          icon={<BarChart3 className="w-6 h-6" />}
-          color="blue"
-          trend={completionRate}
-        />
-        <DashboardCard
-          title="Enrolled Courses"
-          value={<AnimatedCounter endValue={enrolledCount} />}
-          footer="Current semester"
-          icon={<BookOpen className="w-6 h-6" />}
-          color="blue"
-        />
-        <DashboardCard
-          title="Days Left"
-          value={<AnimatedCounter endValue={daysUntilDeadline} />}
-          footer={deadline ? `Deadline: ${deadline.toLocaleDateString()}` : 'No deadline'}
-          icon={<Clock className="w-6 h-6" />}
-          color="yellow"
-          trend={-daysUntilDeadline}
-        />
-      </div>
+
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -270,39 +206,18 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* Sidebar Items */}
-        <div className="space-y-6">
-          {/* Course Status Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Status Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <div className="flex justify-between">
-                <span>Completed</span>
-                <span className="font-semibold text-green-600">{completedCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Pending</span>
-                <span className="font-semibold text-yellow-600">{pendingCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Completion Rate</span>
-                <span className="font-semibold text-blue-600">{completionRate}%</span>
-              </div>
-            </CardContent>
-          </Card>
-
+        {/* Analytics & Sidebar */}
+        <div className="space-y-4 flex flex-col">
           {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>✨ Quick Actions</CardTitle>
+          <Card className="mb-2 hover:shadow-lg transition-shadow duration-150">
+            <CardHeader className="pb-3 border-b border-gray-100 dark:border-gray-800">
+              <CardTitle className="text-lg">✨ Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="pt-4 space-y-3">
               {pendingCount > 0 && (
                 <Button 
                   variant="primary" 
-                  className="w-full gap-2"
+                  className="w-full gap-2 shadow-sm"
                   onClick={handleStartEvaluation}
                 >
                   <Target className="w-4 h-4" />
@@ -311,7 +226,7 @@ export default function StudentDashboard() {
               )}
               <Button 
                 variant="outline" 
-                className="w-full gap-2"
+                className="w-full gap-2 shadow-sm border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
                 onClick={handleViewResults}
               >
                 <FileText className="w-4 h-4" />
@@ -320,26 +235,34 @@ export default function StudentDashboard() {
             </CardContent>
           </Card>
 
-          {/* Important Dates */}
-          <Card>
-            <CardHeader>
-              <CardTitle>📅 Important Dates</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-3">
-                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{daysUntilDeadline}</div>
-                <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">Days remaining</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Until evaluation deadline</p>
-                </div>
-              </div>
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  <strong>Deadline:</strong> {deadline ? deadline.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No deadline'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <DashboardCard
+            title="Pending Evaluations"
+            value={<AnimatedCounter endValue={pendingCount} />}
+            footer={`${pendingCount} evaluations remaining`}
+            icon={<AlertCircle className="w-6 h-6" />}
+            color="red"
+          />
+          <DashboardCard
+            title="Completed Evaluations"
+            value={<AnimatedCounter endValue={completedCount} />}
+            footer={`${completedCount} of ${totalCount} evaluations`}
+            icon={<CheckCircle className="w-6 h-6" />}
+            color="green"
+          />
+          <DashboardCard
+            title="Days Left"
+            value={<AnimatedCounter endValue={daysUntilDeadline} />}
+            footer={deadline ? `Deadline: ${deadline.toLocaleDateString()}` : 'No deadline'}
+            icon={<Clock className="w-6 h-6" />}
+            color="yellow"
+          />
+          <DashboardCard
+            title="Enrolled Courses"
+            value={<AnimatedCounter endValue={enrolledCount} />}
+            footer="Current semester"
+            icon={<BookOpen className="w-6 h-6" />}
+            color="blue"
+          />
 
           {/* Privacy Notice */}
           <Card>

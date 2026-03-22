@@ -55,6 +55,7 @@ export default function Evaluations() {
   // ── Top level: periods list ──
   const { data: periodsData, loading: periodsLoading } = useFetch<any>('/evaluation_periods');
   const [periods, setPeriods] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Sync from fetch
   useEffect(() => {
@@ -71,33 +72,30 @@ export default function Evaluations() {
   const [selectedEval, setSelectedEval] = useState<any>(null);
 
   // ── Dean evaluation state ──
+  const { data: usersData } = useFetch<any>('/users');
   const [deanModalOpen, setDeanModalOpen] = useState(false);
   const [deanTeacher, setDeanTeacher] = useState('');
-  const [deanCourse, setDeanCourse] = useState('');
   const [deanCreating, setDeanCreating] = useState(false);
 
-  // Derive unique teachers and their courses from current period evals
+  // Automatically load every registered teacher from the system DB
   const deanTeachers = useMemo(() => {
-    const map: Record<string, { id: string; name: string; courses: { id: string; name: string }[] }> = {};
-    for (const e of periodEvals) {
-      const tid = e.evaluatee_id || e.evaluatee?.id;
-      const tname = e.evaluatee?.name || e.evaluatee_name;
-      if (!tid || !tname) continue;
-      if (!map[tid]) map[tid] = { id: tid, name: tname, courses: [] };
-      const cid = e.course_id || e.course?.id;
-      const cname = e.course?.name || e.course_name;
-      if (cid && cname && !map[tid].courses.some(c => c.id === String(cid))) {
-        map[tid].courses.push({ id: String(cid), name: cname });
-      }
-    }
-    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-  }, [periodEvals]);
+    return (usersData?.users || [])
+      .filter((u: any) => u.role === 'teacher')
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [usersData]);
 
-  const selectedDeanTeacher = deanTeachers.find(t => t.id === deanTeacher);
+  // Auto-select the first teacher when the modal opens if none is selected
+  useEffect(() => {
+    if (deanModalOpen && deanTeachers.length > 0 && !deanTeacher) {
+      setDeanTeacher(deanTeachers[0].id);
+    }
+  }, [deanModalOpen, deanTeachers, deanTeacher]);
+
+  const selectedDeanTeacher = deanTeachers.find((t: any) => t.id === deanTeacher);
   const isPeerPeriod = selectedPeriod?.form_type === 'peer-review';
 
   const handleDeanCreate = async () => {
-    if (!deanTeacher || (!isPeerPeriod && !deanCourse)) return;
+    if (!deanTeacher) return;
     setDeanCreating(true);
     try {
       const data = await fetchApi('/evaluations/dean', {
@@ -105,12 +103,11 @@ export default function Evaluations() {
         body: JSON.stringify({
           period_id: selectedPeriod.id,
           evaluatee_id: deanTeacher,
-          course_id: isPeerPeriod ? null : Number(deanCourse),
+          course_id: null,
         }),
       });
       setDeanModalOpen(false);
       setDeanTeacher('');
-      setDeanCourse('');
       router.push(`/dean/evaluations/fill/${data.evaluationId}`);
     } catch (err) {
       showFeedback('error', err instanceof Error ? err.message : 'Failed to create dean evaluation');
@@ -180,15 +177,17 @@ export default function Evaluations() {
     setSelectedEval(null);
   };
 
-  const handleToggleLock = async (evalId: number, lock: boolean) => {
+  const handleToggleLock = async (e: any) => {
     try {
+      const isLocked = e.status === 'locked';
+      const newStatus = !isLocked ? 'locked' : (e.submitted_at || e.responses?.length > 0 ? 'submitted' : 'pending');
       await fetchApi('/evaluations', {
         method: 'PATCH',
-        body: JSON.stringify({ id: evalId, status: lock ? 'locked' : 'submitted' }),
+        body: JSON.stringify({ id: e.id, status: newStatus }),
       });
       if (selectedPeriod) viewPeriod(selectedPeriod);
     } catch {
-      alert('Failed to update lock status');
+      showFeedback('error', 'Failed to update lock status');
     }
   };
 
@@ -223,7 +222,7 @@ export default function Evaluations() {
     const label = labels[newStatus] || newStatus;
     confirm({
       title: `${label === 'close' ? 'Close' : 'Reopen'} Period`,
-      message: `Are you sure you want to ${label} "${period.name}"?`,
+      message: `Are you sure you want to ${label} "${period.name}"? ${label === 'close' ? 'This instantly locks all pending evaluations preventing further submissions.' : 'This will unlock all evaluations previously locked by its closure.'}`,
       confirmLabel: label === 'close' ? 'Close Period' : 'Reopen Period',
       variant: label === 'close' ? 'warning' : 'default',
       onConfirm: async () => {
@@ -233,7 +232,11 @@ export default function Evaluations() {
             body: JSON.stringify({ id: period.id, status: newStatus }),
           });
           setPeriods(prev => prev.map(p => p.id === period.id ? data.period : p));
-          if (selectedPeriod?.id === period.id) setSelectedPeriod(data.period);
+          if (selectedPeriod?.id === period.id) {
+            setSelectedPeriod(data.period);
+            viewPeriod(data.period);
+          }
+          refreshAllEvals();
           showFeedback('success', `Period ${label === 'close' ? 'closed' : 'reopened'} successfully.`);
         } catch (err) {
           showFeedback('error', err instanceof Error ? err.message : 'Failed to update status');
@@ -306,7 +309,7 @@ export default function Evaluations() {
           </div>
           <div className="flex gap-2">
             {selectedPeriod.status === 'active' && (
-              <Button variant="primary" size="sm" className="gap-1" onClick={() => { setDeanTeacher(''); setDeanCourse(''); setDeanModalOpen(true); }}>
+              <Button variant="primary" size="sm" className="gap-1" onClick={() => { setDeanTeacher(''); setDeanModalOpen(true); }}>
                 <UserCheck className="w-3 h-3" /> Dean Evaluate
               </Button>
             )}
@@ -373,43 +376,47 @@ export default function Evaluations() {
         </div>
 
         {/* Evaluations table */}
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Evaluations</CardTitle>
+        <Card className="shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <CardHeader className="border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-800/30">
+            <CardTitle>Evaluation Submissions</CardTitle>
+            <CardDescription>Track all submitted, pending, and locked data generated during this period.</CardDescription>
           </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex gap-2 flex-col md:flex-row md:items-end mb-4">
+          <CardContent className="pt-6 space-y-5 flex flex-col">
+            <div className="flex gap-3 flex-col lg:flex-row lg:items-center bg-gray-50/80 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <Input
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
                   placeholder="Search by evaluator, evaluatee, or course..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
-              <select
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                value={filterType}
-                onChange={e => setFilterType(e.target.value)}
-              >
-                <option value="all">All Types</option>
-                <option value="teacher">Student to Teacher</option>
-                <option value="peer">Peer Review</option>
-              </select>
-              <select
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="submitted">Submitted</option>
-                <option value="locked">Locked</option>
-                <option value="draft">Draft/Pending</option>
-              </select>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shadow-sm"
+                  value={filterType}
+                  onChange={e => setFilterType(e.target.value)}
+                >
+                  <option value="all">All Form Types</option>
+                  <option value="teacher">Student to Teacher</option>
+                  <option value="peer">Peer Review</option>
+                </select>
+                <select
+                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shadow-sm"
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                >
+                  <option value="all">Any Status</option>
+                  <option value="submitted">Submitted</option>
+                  <option value="locked">Locked</option>
+                  <option value="pending">Pending Submission</option>
+                </select>
+              </div>
             </div>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
               Showing {filteredEvals.length} of {periodEvals.length} evaluations
             </p>
 
@@ -418,20 +425,20 @@ export default function Evaluations() {
             ) : filteredEvals.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No evaluations found for this period.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-xl">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+                  <thead className="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Evaluator</th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Evaluatee</th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Subject</th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Type</th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Score</th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Actions</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Evaluator</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Target Evaluatee</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Target Subject</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Form Type</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Score</th>
+                      <th className="px-5 py-3.5 text-right font-semibold text-gray-700 dark:text-gray-300">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {filteredEvals.map((e: any) => {
                       const evaluatorName = e.evaluator?.name || e.evaluator_name || '—';
                       const evaluateeName = e.evaluatee?.name || e.evaluatee_name || '—';
@@ -445,60 +452,66 @@ export default function Evaluations() {
                       const isSubmitted = e.status === 'submitted';
 
                       return (
-                        <tr key={e.id}>
-                          <td className="px-4 py-3 text-gray-900 dark:text-white">
-                            {evaluatorName}
-                            {e.is_ghost && <Badge variant="outline" className="ml-1 text-xs">Dean</Badge>}
+                        <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                          <td className="px-5 py-3 text-gray-900 dark:text-white font-medium">
+                            <div className="flex items-center gap-2">
+                              {evaluatorName}
+                              {e.is_ghost && <Badge variant="outline" className="text-[10px] leading-tight px-1.5 py-0">Dean</Badge>}
+                            </div>
                           </td>
-                          <td className="px-4 py-3 text-gray-900 dark:text-white">{evaluateeName}</td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                            {courseCode ? `${courseCode} — ${courseName}` : courseName}
+                          <td className="px-5 py-3 text-gray-900 dark:text-gray-200">{evaluateeName}</td>
+                          <td className="px-5 py-3">
+                             <div className="flex flex-col">
+                                {courseCode ? <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs tracking-wider">{courseCode}</span> : null}
+                                <span className="text-gray-600 dark:text-gray-400 truncate max-w-[200px]" title={courseName}>{courseName}</span>
+                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="secondary">
-                              {e.evaluation_type === 'teacher' ? 'Student\u2192Teacher' : e.evaluation_type === 'peer' ? 'Peer' : e.evaluation_type}
+                          <td className="px-5 py-3">
+                            <Badge variant="secondary" className="whitespace-nowrap font-medium">
+                              {e.evaluation_type === 'teacher' ? 'Student \u2192 Teacher' : e.evaluation_type === 'peer' ? 'Peer' : e.evaluation_type}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={isSubmitted ? 'success' : isLocked ? 'destructive' : 'secondary'}>
+                          <td className="px-5 py-3">
+                            <Badge variant={isSubmitted ? 'success' : isLocked ? 'destructive' : 'secondary'} className="shadow-sm">
                               {e.status}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3 font-semibold text-blue-600">{avg === '—' ? '—' : `${avg}/5`}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2 flex-wrap">
+                          <td className="px-5 py-3 font-bold text-blue-600 dark:text-blue-400">{avg === '—' ? '—' : `${avg}/5`}</td>
+                          <td className="px-5 py-3">
+                            <div className="flex gap-1.5 flex-wrap justify-end">
                               {/* View responses (submitted or locked) */}
                               {(isSubmitted || isLocked) && (
-                                <Button variant="outline" size="sm" className="gap-1" onClick={() => setSelectedEval(e)}>
-                                  <Eye className="w-3 h-3" /> View
+                                <Button variant="outline" size="sm" className="gap-1.5 shadow-sm bg-white dark:bg-gray-800" onClick={() => setSelectedEval(e)}>
+                                  <Eye className="w-3.5 h-3.5" /> View
                                 </Button>
                               )}
                               {/* Ghost: Resume (pending) or Edit (submitted) */}
                               {e.is_ghost && e.status === 'pending' && (
-                                <Button variant="primary" size="sm" className="gap-1" onClick={() => router.push(`/dean/evaluations/fill/${e.id}`)}>
-                                  <UserCheck className="w-3 h-3" /> Resume
+                                <Button variant="primary" size="sm" className="gap-1.5 shadow-sm" onClick={() => router.push(`/dean/evaluations/fill/${e.id}`)}>
+                                  <UserCheck className="w-3.5 h-3.5" /> Resume
                                 </Button>
                               )}
                               {e.is_ghost && isSubmitted && (
-                                <Button variant="outline" size="sm" className="gap-1" onClick={() => router.push(`/dean/evaluations/fill/${e.id}`)}>
-                                  <Pencil className="w-3 h-3" /> Edit
+                                <Button variant="outline" size="sm" className="gap-1.5 shadow-sm bg-white dark:bg-gray-800" onClick={() => router.push(`/dean/evaluations/fill/${e.id}`)}>
+                                  <Pencil className="w-3.5 h-3.5" /> Edit
                                 </Button>
                               )}
-                              {/* Lock/Unlock (submitted or locked, non-ghost) */}
-                              {!e.is_ghost && (isSubmitted || isLocked) && (
+                              {/* Lock/Unlock (non-ghost) */}
+                              {!e.is_ghost && (
                                 <Button
                                   variant={isLocked ? 'danger' : 'secondary'}
                                   size="sm"
-                                  className="gap-1"
-                                  onClick={() => handleToggleLock(e.id, !isLocked)}
+                                  className="gap-1.5 shadow-sm"
+                                  onClick={() => handleToggleLock(e)}
                                 >
-                                  {isLocked ? <><Unlock className="w-3 h-3" /> Unlock</> : <><Lock className="w-3 h-3" /> Lock</>}
+                                  {isLocked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
                                 </Button>
                               )}
                               {/* Delete (ghost) or Reset (normal) */}
                               {(e.is_ghost || isSubmitted) && !isLocked && (
-                                <Button variant="danger" size="sm" className="gap-1" onClick={() => handleEvalDelete(e)}>
-                                  {e.is_ghost ? <><Trash2 className="w-3 h-3" /> Delete</> : <><RotateCcw className="w-3 h-3" /> Reset</>}
+                                <Button variant="danger" size="sm" className="gap-1.5 shadow-sm" onClick={() => handleEvalDelete(e)}>
+                                  {e.is_ghost ? <Trash2 className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                                  <span className="hidden sm:inline">{e.is_ghost ? 'Delete' : 'Reset'}</span>
                                 </Button>
                               )}
                             </div>
@@ -546,29 +559,27 @@ export default function Evaluations() {
                     <p className="text-sm text-gray-500">No responses recorded.</p>
                   ) : (
                     selectedEval.responses.map((r: any, idx: number) => (
-                      <div key={idx} className="p-2 bg-gray-50 dark:bg-gray-800 rounded mb-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-2 border border-gray-100 dark:border-gray-700">
+                        <div className="flex justify-between items-start">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white leading-tight pr-4">
                             {r.question_text || `Question ${idx + 1}`}
                           </span>
-                          <span className="font-semibold text-blue-600 ml-2 whitespace-nowrap">{r.rating}/5</span>
+                          <span className="font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded text-sm">{r.rating}/5</span>
                         </div>
                         {r.criteria_name && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{r.criteria_name}</span>
-                        )}
-                        {r.comment && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">{r.comment}</p>
+                          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1 block">{r.criteria_name}</span>
                         )}
                       </div>
                     ))
                   )}
                 </div>
-                {selectedEval.comments && (
-                  <div className="pt-4 border-t">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Overall Comment:</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 italic">"{selectedEval.comments}"</p>
+                
+                <div className="pt-4 mt-6 border-t border-gray-100 dark:border-gray-800">
+                  <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 p-3 rounded-lg flex gap-2 text-sm text-orange-800 dark:text-orange-300">
+                    <Lock className="w-4 h-4 mt-0.5 shrink-0" />
+                    <p>Qualitative comments and text feedback are hidden from administrative view to strictly protect evaluator anonymity.</p>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -583,25 +594,16 @@ export default function Evaluations() {
             <Select
               label="Select Teacher"
               value={deanTeacher}
-              onChange={e => { setDeanTeacher(e.target.value); setDeanCourse(''); }}
+              onChange={e => setDeanTeacher(e.target.value)}
               options={deanTeachers.map(t => ({ value: t.id, label: t.name }))}
               placeholder="Choose a teacher..."
             />
-            {deanTeacher && !isPeerPeriod && selectedDeanTeacher && selectedDeanTeacher.courses.length > 0 && (
-              <Select
-                label="Select Subject"
-                value={deanCourse}
-                onChange={e => setDeanCourse(e.target.value)}
-                options={selectedDeanTeacher.courses.map(c => ({ value: c.id, label: c.name }))}
-                placeholder="Choose a subject..."
-              />
-            )}
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setDeanModalOpen(false)}>Cancel</Button>
               <Button
                 variant="primary"
                 onClick={handleDeanCreate}
-                disabled={deanCreating || !deanTeacher || (!isPeerPeriod && !deanCourse)}
+                disabled={deanCreating || !deanTeacher}
                 isLoading={deanCreating}
               >
                 Start Evaluation
@@ -616,13 +618,28 @@ export default function Evaluations() {
   }
 
   // ── TOP-LEVEL: Periods list ──
+  const visiblePeriods = periods.filter(p => showHistory ? p.status === 'closed' : p.status !== 'closed');
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Evaluations</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          View evaluation periods and drill down into individual evaluations.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {showHistory ? 'Evaluation History' : 'Evaluations'}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            {showHistory 
+               ? 'View past and closed evaluation periods from previous timelines.'
+               : 'Manage active evaluation periods and drill down into live submissions.'}
+          </p>
+        </div>
+        <Button 
+          variant={showHistory ? 'primary' : 'outline'}
+          className={showHistory ? 'bg-indigo-600 hover:bg-indigo-700 shadow-sm border-indigo-700' : 'shadow-sm bg-white dark:bg-gray-800'}
+          onClick={() => setShowHistory(!showHistory)}
+        >
+          {showHistory ? 'Return to Active Periods' : 'View Evaluation History'}
+        </Button>
       </div>
 
       {feedback && (
@@ -631,89 +648,92 @@ export default function Evaluations() {
         </Alert>
       )}
 
-      {periods.length === 0 ? (
+      {visiblePeriods.length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No evaluation periods found.</p>
-            <p className="text-sm text-gray-400">Create one in Evaluation Setup to get started.</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-2">
+               {showHistory ? 'No closed or archived evaluation periods exist.' : 'No active evaluation periods found.'}
+            </p>
+            {!showHistory && <p className="text-sm text-gray-400">Create one in Evaluation Setup to get started.</p>}
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Type</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Academic Year</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Semester</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Dates</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Progress</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {periods.map((p: any) => {
-                const prog = periodProgress[p.id] || { total: 0, submitted: 0 };
-                const pct = prog.total > 0 ? Math.round((prog.submitted / prog.total) * 100) : 0;
+        <Card className="shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700/50">
+                <tr>
+                  <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Name</th>
+                  <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Form Type</th>
+                  <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Target Range</th>
+                  <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                  <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Progress Tracking</th>
+                  <th className="px-5 py-4 text-right font-semibold text-gray-700 dark:text-gray-300">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {visiblePeriods.map((p: any) => {
+                  const prog = periodProgress[p.id] || { total: 0, submitted: 0 };
+                  const pct = prog.total > 0 ? Math.round((prog.submitted / prog.total) * 100) : 0;
 
-                return (
-                  <tr key={p.id}>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{p.name}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={p.form_type === 'peer-review' ? 'warning' : 'default'}>
-                        {p.form_type === 'peer-review' ? 'Peer Review' : p.form_type === 'student-to-teacher' ? 'Student\u2192Teacher' : p.form_type || '—'}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{p.academic_year || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{p.semester || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {formatDate(p.start_date)} — {formatDate(p.end_date)}
-                    </td>
-                    <td className="px-4 py-3">{statusBadge(p.status)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 min-w-[160px]">
-                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">{p.name}</td>
+                      <td className="px-5 py-4">
+                        <Badge variant={p.form_type === 'peer-review' ? 'warning' : 'default'} className="font-medium whitespace-nowrap">
+                          {p.form_type === 'peer-review' ? 'Peer Review' : p.form_type === 'student-to-teacher' ? 'Student \u2192 Teacher' : p.form_type || '—'}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col">
+                           <span className="text-gray-900 dark:text-gray-200 font-medium">AY {p.academic_year || '—'} / Sem {p.semester || '—'}</span>
+                           <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(p.start_date)} — {formatDate(p.end_date)}</span>
                         </div>
-                        <span className="text-xs text-gray-500 whitespace-nowrap">{prog.submitted}/{prog.total} ({pct}%)</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 flex-wrap">
-                        <Button variant="outline" size="sm" className="gap-1" onClick={() => viewPeriod(p)}>
-                          <Eye className="w-3 h-3" /> View
-                        </Button>
-                        <Button variant="outline" size="sm" className="gap-1" onClick={() => router.push(`/dean/evaluation-setup?periodId=${p.id}`)}>
-                          <Pencil className="w-3 h-3" /> Edit
-                        </Button>
-                        {p.status === 'active' && (
-                          <Button variant="danger" size="sm" className="gap-1" onClick={() => handleStatusChange(p, 'closed')}>
-                            <XCircle className="w-3 h-3" /> Close
+                      </td>
+                      <td className="px-5 py-4">{statusBadge(p.status)}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3 min-w-[160px]">
+                          <div className="flex-1 bg-gray-100 dark:bg-gray-800/80 rounded-full h-2.5 overflow-hidden border border-gray-200 dark:border-gray-700">
+                            <div
+                              className="bg-blue-600 dark:bg-blue-500 h-2.5 rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 whitespace-nowrap">{prog.submitted}/{prog.total} <span className="opacity-70">({pct}%)</span></span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex gap-2 flex-wrap justify-end">
+                          <Button variant="outline" size="sm" className="gap-1.5 shadow-sm bg-white dark:bg-gray-800" onClick={() => viewPeriod(p)}>
+                            <Eye className="w-3.5 h-3.5" /> View
                           </Button>
-                        )}
-                        {p.status === 'closed' && (
-                          <Button variant="primary" size="sm" className="gap-1" onClick={() => handleStatusChange(p, 'active')}>
-                            <PlayCircle className="w-3 h-3" /> Reopen
+                          <Button variant="outline" size="sm" className="gap-1.5 shadow-sm bg-white dark:bg-gray-800" onClick={() => router.push(`/dean/evaluation-setup?periodId=${p.id}`)}>
+                            <Pencil className="w-3.5 h-3.5" /> Edit
                           </Button>
-                        )}
-                        {p.status !== 'active' && (
-                          <Button variant="danger" size="sm" className="gap-1" onClick={() => handleDelete(p)}>
-                            <Trash2 className="w-3 h-3" /> Delete
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          {p.status === 'active' && (
+                            <Button variant="danger" size="sm" className="gap-1.5 shadow-sm" onClick={() => handleStatusChange(p, 'closed')}>
+                              <XCircle className="w-3.5 h-3.5" /> Close
+                            </Button>
+                          )}
+                          {p.status === 'closed' && (
+                            <Button variant="primary" size="sm" className="gap-1.5 shadow-sm" onClick={() => handleStatusChange(p, 'active')}>
+                              <PlayCircle className="w-3.5 h-3.5" /> Reopen
+                            </Button>
+                          )}
+                          {p.status !== 'active' && (
+                            <Button variant="ghost" size="sm" className="gap-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleDelete(p)}>
+                              <Trash2 className="w-3.5 h-3.5" /> <span className="sr-only sm:not-sr-only">Delete</span>
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       <ConfirmModal {...modalProps} />

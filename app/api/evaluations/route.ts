@@ -133,8 +133,9 @@ export async function GET(request: NextRequest) {
     } else {
       // role=evaluatee returns evaluations where this user is being evaluated
       const role = url.searchParams.get('role');
+      const isHistory = url.searchParams.get('history') === 'true';
       let base =
-        `SELECT e.id, e.course_id, e.period_id, e.evaluatee_id, e.evaluator_id, e.evaluation_type, e.status, e.comments, e.submitted_at, e.created_at,
+        `SELECT e.id, e.course_id, e.period_id, e.evaluatee_id, e.evaluator_id, e.evaluation_type, e.status, e.comments, e.submitted_at, e.created_at, e.is_archived,
                 c.name as course_name, c.code as course_code,
                 u.name as evaluatee_name,
                 ep.name as period_name, ep.academic_year, ep.semester, ep.form_id,
@@ -146,8 +147,12 @@ export async function GET(request: NextRequest) {
       const params: any[] = [decoded.userId];
       if (role === 'evaluatee') {
         base += ' WHERE e.evaluatee_id = ?';
+        if (!isHistory) base += ' AND e.is_archived = 0';
       } else {
-        base += ` WHERE e.evaluator_id = ? AND e.status != 'locked'`;
+        base += ' WHERE e.evaluator_id = ?';
+        if (!isHistory) {
+          base += ` AND e.status != 'locked' AND e.is_archived = 0`;
+        }
       }
       if (filterType) {
         base += ' AND e.evaluation_type = ?';
@@ -165,7 +170,13 @@ export async function GET(request: NextRequest) {
     const evaluationsWithResponses = await Promise.all(
       (evaluations || []).map(async (evaluation: any) => {
         const responses: any = await query(
-          'SELECT id, criteria_id, rating, comment FROM evaluation_responses WHERE evaluation_id = ? ORDER BY id',
+          `SELECT er.id, er.criteria_id, er.rating, er.comment,
+                  ec.name as criteria_name
+           FROM evaluation_responses er
+           LEFT JOIN evaluation_questions eq ON er.criteria_id = eq.id
+           LEFT JOIN evaluation_criteria ec ON eq.criteria_id = ec.id
+           WHERE er.evaluation_id = ? 
+           ORDER BY er.id`,
           [evaluation.id]
         );
         return {
@@ -334,7 +345,8 @@ export async function POST(request: NextRequest) {
             : Number.parseInt(period.semester) || null;
 
           // Load curriculum once for all groups
-          const { curriculum } = await import('@/data/curriculum');
+          const { buildCurriculum } = await import('@/app/api/curriculum/route');
+          const curriculum = await buildCurriculum();
 
           for (const group of groups) {
             const program = group.program;       // e.g. 'BSIT'
@@ -570,6 +582,14 @@ export async function DELETE(request: NextRequest) {
 
     // Always clear responses first
     await query('DELETE FROM evaluation_responses WHERE evaluation_id = ?', [id]);
+
+    // Clean up duplicate anonymous dashboard comment if it exists
+    if (evaluation.comments) {
+      await query(
+        `DELETE FROM comments WHERE entity_type = 'evaluation' AND entity_id = ? AND author_id = ? AND content = ?`,
+        [evaluation.evaluatee_id, evaluation.evaluator_id, evaluation.comments]
+      );
+    }
 
     if (isGhost) {
       // Ghost eval: delete entirely

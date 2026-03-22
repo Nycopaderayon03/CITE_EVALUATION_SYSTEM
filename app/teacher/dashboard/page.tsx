@@ -19,7 +19,7 @@ interface FeedbackItem {
   comment: string;
   rating: number;
   date: Date;
-  source: 'student' | 'peer' | 'dean';
+  source: 'student' | 'peer' | 'dean' | 'admin';
 }
 
 export default function TeacherDashboard() {
@@ -66,7 +66,7 @@ export default function TeacherDashboard() {
             comment: c.content,
             rating: c.rating || 0,
             date: new Date(c.created_at),
-            source: c.author_role === 'teacher' ? 'peer' : c.author_role === 'dean' ? 'dean' : 'student',
+            source: c.author_role === 'teacher' ? 'peer' : ['dean', 'admin'].includes(c.author_role) ? 'admin' : 'student',
           })));
         }
       })
@@ -82,15 +82,12 @@ export default function TeacherDashboard() {
       .finally(() => setReceivedEvalsLoading(false));
   }, [teacherId]);
 
-  const assignedCourses = coursesData?.courses?.filter((c: any) => c.teacher_id === teacherId) || [];
+  const assignedCourses = coursesData?.courses || [];
   const assignedCount = assignedCourses.length;
 
   // Use received evaluations for stats
   const teacherEvals = receivedEvals;
-  const teachingLoad = assignedCourses.reduce(
-    (s: number, c: any) => s + (c.student_count || 0),
-    0
-  );
+
 
   // Compute overall rating from received evaluation responses
   const evaluationAvg = (() => {
@@ -105,14 +102,14 @@ export default function TeacherDashboard() {
     return allRatings.length ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : 0;
   })();
 
-  // Peer evaluations completed by this teacher (only those where user is evaluator)
-  const peerCompleted = analyticsData?.analytics?.peerCompleted ?? 0;
+  // Peer evaluations pending by this teacher (only those where user is evaluator)
+  const peerPending = evalData?.evaluations?.filter((e: any) => e.evaluation_type === 'peer' && e.status === 'pending').length || 0;
 
   const deptAvg = analyticsData?.analytics?.departmentTrend?.slice(-1)[0]?.score || 0;
 
   // Split feedback by source
   const studentFeedback = feedbackItems.filter(f => f.source === 'student');
-  const peerFeedback = feedbackItems.filter(f => f.source === 'peer' || f.source === 'dean');
+  const peerFeedback = feedbackItems.filter(f => f.source === 'peer' || f.source === 'admin' || f.source === 'dean');
 
   const studentFeedbackAvg = studentFeedback.length
     ? studentFeedback.reduce((s, f) => s + f.rating, 0) / studentFeedback.length
@@ -170,51 +167,12 @@ export default function TeacherDashboard() {
 
       </div>
 
-      {/* Key Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <DashboardCard
-          title="Classes Teaching"
-          value={<AnimatedCounter endValue={assignedCount} />}
-          footer="This semester"
-          icon={<Users className="w-6 h-6" />}
-          color="blue"
-        />
-        <DashboardCard
-          title="Total Students"
-          value={<AnimatedCounter endValue={teachingLoad} />}
-          footer="Estimated enrollees"
-          icon={<Users className="w-6 h-6" />}
-          color="green"
-        />
-        <DashboardCard
-          title="Overall Rating"
-          value={
-            <span>
-              <AnimatedCounter endValue={Number.isFinite(evaluationAvg) ? evaluationAvg : 0} decimals={1} suffix="/5" />
-            </span>
-          }
-          footer={`Based on ${teacherEvals.filter(e => (e.responses || []).length > 0).length} responses`}
-          icon={<TrendingUp className="w-6 h-6" />}
-          color="green"
-        />
-        <DashboardCard
-          title="Student Feedback"
-          value={<AnimatedCounter endValue={Math.round(studentFeedbackAvg * 10) / 10} decimals={1} suffix="/5" />}
-          footer={`${feedbackItems.length} comments`}
-          icon={<MessageSquare className="w-6 h-6" />}
-          color="yellow"
-        />
-        <DashboardCard
-          title="Peer Reviews"
-          value={<AnimatedCounter endValue={peerCompleted} />}
-          footer="Completed by you"
-          icon={<Award className="w-6 h-6" />}
-          color="red"
-        />
-      </div>
 
-      {/* Anonymous Student Feedback */}
-      <Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Anonymous Student Feedback */}
+          <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
@@ -275,13 +233,13 @@ export default function TeacherDashboard() {
         </CardContent>
       </Card>
 
-      {/* Peer Feedback */}
+      {/* Peer & Admin Feedback */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>Peer Feedback</CardTitle>
-              <CardDescription>Anonymous feedback from peer evaluations</CardDescription>
+              <CardDescription>Anonymous feedback from peer and administrator evaluations</CardDescription>
             </div>
             <Badge variant="secondary">{peerFeedback.length} comments</Badge>
           </div>
@@ -289,7 +247,7 @@ export default function TeacherDashboard() {
         <CardContent>
           {peerFeedback.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 text-center py-6">
-              No peer feedback received yet. Feedback will appear here once peers submit evaluations.
+              No peer or admin feedback received yet. Feedback will appear here once evaluations are submitted.
             </p>
           ) : (
             <div className="space-y-4">
@@ -336,72 +294,99 @@ export default function TeacherDashboard() {
           )}
         </CardContent>
       </Card>
+        </div>
 
-      {/* Satisfaction Distribution */}
-      {studentSatisfactionData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Student Satisfaction</CardTitle>
-            <CardDescription>Distribution based on received evaluation scores</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {studentSatisfactionData.map((item) => (
-                <div key={item.name} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32">{item.name}</span>
-                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full ${
-                        item.name === 'Very Satisfied' ? 'bg-green-500' :
-                        item.name === 'Satisfied' ? 'bg-blue-500' :
-                        item.name === 'Neutral' ? 'bg-yellow-500' :
-                        'bg-red-500'
-                      }`}
-                      style={{ width: `${item.value}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-12 text-right">{item.value}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link href="/teacher/peer">
-          <Card className="hover:shadow-lg transition cursor-pointer">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Users className="w-8 h-8 text-blue-600" />
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">Peer Evaluation</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Evaluate your colleagues</p>
-                  </div>
-                </div>
-                <ArrowRight className="w-5 h-5 text-gray-400" />
-              </div>
+        <div className="space-y-4 flex flex-col">
+          {/* Quick Actions */}
+          <Card className="mb-2 hover:shadow-lg transition-shadow duration-150">
+            <CardHeader className="pb-3 border-b border-gray-100 dark:border-gray-800">
+              <CardTitle className="text-lg">✨ Quick Links</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              <Button 
+                variant="primary" 
+                className="w-full gap-2 shadow-sm"
+                onClick={() => router.push('/teacher/peer')}
+              >
+                <Users className="w-4 h-4" />
+                Peer Evaluation
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full gap-2 shadow-sm border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                onClick={() => router.push('/teacher/results')}
+              >
+                <TrendingUp className="w-4 h-4" />
+                View Results
+              </Button>
             </CardContent>
           </Card>
-        </Link>
-        <Link href="/teacher/results">
-          <Card className="hover:shadow-lg transition cursor-pointer">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="w-8 h-8 text-green-600" />
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">View Results</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">See detailed evaluation results</p>
-                  </div>
+
+          {/* Key Stats Migration */}
+          <DashboardCard
+            title="Overall Rating"
+            value={
+              <span>
+                <AnimatedCounter endValue={Number.isFinite(evaluationAvg) ? evaluationAvg : 0} decimals={1} suffix="/5" />
+              </span>
+            }
+            footer={`Based on ${teacherEvals.filter(e => (e.responses || []).length > 0).length} responses`}
+            icon={<TrendingUp className="w-6 h-6" />}
+            color="green"
+          />
+          <DashboardCard
+            title="Classes Teaching"
+            value={<AnimatedCounter endValue={assignedCount} />}
+            footer="This semester"
+            icon={<Users className="w-6 h-6" />}
+            color="blue"
+          />
+          <DashboardCard
+            title="Student Feedback"
+            value={<AnimatedCounter endValue={Math.round(studentFeedbackAvg * 10) / 10} decimals={1} suffix="/5" />}
+            footer={`${feedbackItems.length} comments`}
+            icon={<MessageSquare className="w-6 h-6" />}
+            color="yellow"
+          />
+          <DashboardCard
+            title="Peer Reviews"
+            value={<AnimatedCounter endValue={peerPending} />}
+            footer="Pending tasks"
+            icon={<Award className="w-6 h-6" />}
+            color="red"
+          />
+
+          {/* Satisfaction Distribution */}
+          {studentSatisfactionData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Student Satisfaction</CardTitle>
+                <CardDescription>Distribution based on received evaluation scores</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {studentSatisfactionData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32">{item.name}</span>
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                        <div
+                          className={`h-3 rounded-full ${
+                            item.name === 'Very Satisfied' ? 'bg-green-500' :
+                            item.name === 'Satisfied' ? 'bg-blue-500' :
+                            item.name === 'Neutral' ? 'bg-yellow-500' :
+                            'bg-red-500'
+                          }`}
+                          style={{ width: `${item.value}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-12 text-right">{item.value}%</span>
+                    </div>
+                  ))}
                 </div>
-                <ArrowRight className="w-5 h-5 text-gray-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

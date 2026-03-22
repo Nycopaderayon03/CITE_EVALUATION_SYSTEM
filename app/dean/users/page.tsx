@@ -10,9 +10,9 @@ import { useFetch } from '@/hooks';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { Alert } from '@/components/ui/Alert';
 import type { User } from '@/types';
-import { Search, Plus, Trash2, Edit2, Download, Upload } from 'lucide-react';
-import { downloadPdf } from '@/utils/helpers';
+import { Search, Plus, Trash2, Edit2 } from 'lucide-react';
 
 // users are loaded from the backend via API
 
@@ -22,10 +22,22 @@ export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'student' as User['role'], course: '', year_level: 0, section: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'student' as User['role'], course: '', year_level: 0, section: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const displaySuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const displayError = (msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 3000);
+  };
 
   // Debug log for API response
   useEffect(() => {
@@ -60,7 +72,7 @@ export default function Users() {
 
   const openAdd = () => {
     setEditingUser(null);
-    setForm({ name: '', email: '', role: 'student', course: '', year_level: 0, section: '' });
+    setForm({ name: '', email: '', password: '', role: 'student', course: '', year_level: 0, section: '' });
     setIsModalOpen(true);
   };
 
@@ -69,6 +81,7 @@ export default function Users() {
     setForm({ 
       name: user.name || '', 
       email: user.email || '', 
+      password: '', // Blank by default, only sent if typed
       role: user.role,
       course: user.course || '',
       year_level: (user as any).year_level || 0,
@@ -77,77 +90,98 @@ export default function Users() {
     setIsModalOpen(true);
   };
 
-  const saveUser = () => {
+  const saveUser = async () => {
     if (!form.name?.trim() || !form.email?.trim()) {
-      return alert('Name and email are required');
+      return displayError('Name and email are required');
+    }
+    if (!editingUser && !form.password?.trim()) {
+      return displayError('Password is required for new users');
     }
 
-    if (editingUser) {
-      const updatedUser = { ...editingUser, ...form };
-      setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? updatedUser : u)));
-      alert('User updated successfully!');
-    } else {
-      const id = `user-${Date.now()}`;
-      const newUser: any = {
-        id,
+    try {
+      const token = sessionStorage.getItem('auth_token');
+      const url = '/api/users';
+      const payload: any = {
         name: form.name,
         email: form.email,
         role: form.role,
         course: form.course || null,
         year_level: form.year_level || null,
         section: form.section || null,
+        password: form.password || undefined // Only send if set
       };
-      setUsers((prev) => [newUser, ...prev]);
-      alert('User created successfully!');
-    }
 
-    setIsModalOpen(false);
+      if (editingUser) {
+        payload.id = editingUser.id;
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        setUsers(prev => prev.map(u => (u.id === editingUser.id ? { ...u, ...payload } : u)));
+        displaySuccess('User updated successfully!');
+      } else {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        setUsers(prev => [...prev, data.user]);
+        displaySuccess('User created successfully!');
+      }
+
+      setIsModalOpen(false);
+    } catch (err: any) {
+      displayError(err.message || 'Operation failed');
+    }
   };
 
-  const deleteUser = (id: string) => {
+  const deleteUser = async (id: string) => {
     if (!id || !confirm('Delete this user? This action cannot be undone.')) return;
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    alert('User deleted');
+    
+    try {
+      const token = sessionStorage.getItem('auth_token');
+      const res = await fetch(`/api/users?id=${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      setUsers(prev => prev.filter(u => u.id !== id));
+      displaySuccess('User deleted successfully!');
+    } catch (err: any) {
+      displayError(err.message || 'Deletion failed');
+    }
   };
 
   const bulkDelete = () => {
     if (!selectedUsers || selectedUsers.length === 0) {
-      alert('Please select users to delete');
+      displayError('Please select users to delete');
       return;
     }
     if (!confirm(`Delete ${selectedUsers.length} users? This cannot be undone.`)) return;
     setUsers((prev) => prev.filter((u) => !selectedUsers.includes(u.id)));
     setSelectedUsers([]);
-    alert('Users deleted successfully!');
+    displaySuccess('Users deleted successfully!');
   };
 
   const bulkChangeRole = (newRole: User['role']) => {
     if (!selectedUsers || selectedUsers.length === 0) {
-      alert('Please select users');
+      displayError('Please select users');
       return;
     }
     setUsers((prev) =>
       prev.map((u) => (selectedUsers.includes(u.id) ? { ...u, role: newRole } : u))
     );
     setSelectedUsers([]);
-    alert(`Role updated for ${selectedUsers.length} users!`);
-  };
-
-  const exportUsers = () => {
-    const data = filteredUsers.map(u => ({
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      course: u.course || 'N/A',
-    }));
-
-    const headers = ['Name', 'Email', 'Role', 'Course'];
-    const csv = [
-      headers.join(','),
-      ...data.map(d => headers.map(h => `"${String((d as any)[h.toLowerCase()] ?? '')}"`).join(',')),
-    ].join('\n');
-
-    downloadPdf(csv, `users-${new Date().toISOString().split('T')[0]}.pdf`);
+    displaySuccess(`Role updated for ${selectedUsers.length} users!`);
   };
 
   const toggleUserSelection = (userId: string) => {
@@ -173,16 +207,25 @@ export default function Users() {
           <p className="text-gray-600 dark:text-gray-400 mt-2">Manage system users and assign roles</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={exportUsers}>
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-          <Button variant="primary" className="gap-2" onClick={openAdd}>
-            <Plus className="w-4 h-4" />
+
+          <Button variant="primary" size="lg" className="gap-2 text-lg shadow-md hover:shadow-lg transition-shadow" onClick={openAdd}>
+            <Plus className="w-5 h-5" />
             Add User
           </Button>
         </div>
       </div>
+
+      {successMsg && (
+        <Alert variant="success" className="animate-in fade-in slide-in-from-top-4">
+          {successMsg}
+        </Alert>
+      )}
+
+      {errorMsg && (
+        <Alert variant="error" className="animate-in fade-in slide-in-from-top-4">
+          {errorMsg}
+        </Alert>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -407,6 +450,14 @@ export default function Users() {
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="Enter email address"
+            disabled={!!editingUser}
+          />
+          <Input
+            label={editingUser ? "Password (leave blank to keep current)" : "Password"}
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            placeholder={editingUser ? "••••••••" : "Enter temporary password"}
           />
           <div>
             <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -419,7 +470,6 @@ export default function Users() {
             >
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
-              <option value="dean">Administrator</option>
             </select>
           </div>
 

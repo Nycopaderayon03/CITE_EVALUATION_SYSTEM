@@ -6,16 +6,22 @@ import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { useFetch } from '@/hooks';
-import { Users, BookOpen, Search } from 'lucide-react';
+import { BookOpen, Search, Users, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function TeacherClasses() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses');
+  const [showHistory, setShowHistory] = useState(false);
+  const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses?history=true');
 
   const { user } = useAuth();
   const teacherId = user?.id;
-  const teacherCourses = (coursesData?.courses || []).filter((c:any) => c.teacher_id === teacherId);
+  const teacherCourses = (coursesData?.courses || []).filter((c:any) => 
+    (showHistory ? Number(c.is_archived) === 1 : Number(c.is_archived) === 0)
+  );
 
   const filteredCourses = teacherCourses.filter((c: any) =>
     c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -26,70 +32,77 @@ export default function TeacherClasses() {
 
   // Group courses by semester for better organization
   const coursesBySemester = filteredCourses.reduce((acc: any, course: any) => {
-    const sem = course.semester ? `${course.semester}${course.semester === 1 ? 'st' : course.semester === 2 ? 'nd' : 'rd'} Semester` : 'Unassigned';
+    let sem = 'Unassigned';
+    if (course.semester) {
+      if (typeof course.semester === 'number') {
+        sem = `${course.semester}${course.semester === 1 ? 'st' : course.semester === 2 ? 'nd' : course.semester === 3 ? 'rd' : 'th'} Semester`;
+      } else {
+        sem = course.semester; // Already 1st Semester, 2nd Semester, etc.
+      }
+    }
     if (!acc[sem]) acc[sem] = [];
     acc[sem].push(course);
     return acc;
   }, {});
 
-  const totalStudents = teacherCourses.reduce((sum: number, course: any) => sum + (course.student_count || 0), 0);
+
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">📚 My Classes</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">📚 {showHistory ? 'Class History' : 'My Classes'}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            View all your assigned classes, manage subjects, and track student performance
+            {showHistory ? 'View your archived classes from past academic periods' : 'View all your assigned classes, manage subjects, and track student performance'}
           </p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant={showHistory ? 'outline' : 'primary'} 
+            size="lg" 
+            onClick={() => setShowHistory(!showHistory)} 
+            className="gap-2 shadow-md px-6 py-3"
+          >
+            <BookOpen className="w-5 h-5" />
+            {showHistory ? 'Back to Current Classes' : 'View Class History'}
+          </Button>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Search by subject code or name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Search Bar */}
+        <div className="lg:col-span-3">
+          <Card className="h-full">
+            <CardContent className="pt-6 h-full flex flex-col justify-center">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by subject code or name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Classes</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{teacherCourses.length}</p>
+        {/* Stats */}
+        <div className="lg:col-span-1">
+          <Card className="h-full">
+            <CardContent className="pt-6 h-full flex flex-col justify-center">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Classes</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{teacherCourses.length}</p>
+                </div>
+                <div className="bg-blue-100 p-3 rounded-full dark:bg-blue-900/30">
+                  <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
               </div>
-              <div className="bg-blue-100 p-3 rounded-full dark:bg-blue-900/30">
-                <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Students</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {totalStudents}
-                </p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-full dark:bg-green-900/30">
-                <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Courses List */}
@@ -136,12 +149,14 @@ export default function TeacherClasses() {
                             )}
                           </CardDescription>
                         </div>
-                        <div className="text-center pl-4 border-l dark:border-gray-700 min-w-[80px]">
-                          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                            {course.student_count || 0}
-                          </p>
-                          <p className="text-xs text-gray-500 uppercase tracking-wider">Students</p>
-                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-1.5 hidden md:flex shrink-0"
+                          onClick={() => router.push('/teacher/results')}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Results
+                        </Button>
                       </div>
                     </CardHeader>
                   </Card>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 interface SidebarItem {
@@ -17,7 +18,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ items, title, className = '' }: SidebarProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <>
@@ -53,23 +55,31 @@ export function Sidebar({ items, title, className = '' }: SidebarProps) {
         </div>
 
         <nav className="p-4 space-y-2">
-          {items.map((item, index) => (
-            <Link
-              key={index}
-              href={item.href}
-              className="flex items-center justify-between px-4 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                {item.icon}
-                <span className="font-medium">{item.label}</span>
-              </div>
-              {Boolean(item.badge) && (
-                <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          ))}
+          {items.map((item, index) => {
+            const isActive = pathname === item.href || (pathname?.startsWith(item.href) && item.href !== '/dean/dashboard' && item.href !== '/teacher/dashboard' && item.href !== '/student/dashboard');
+            
+            return (
+              <Link
+                key={index}
+                href={item.href}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-slate-100 dark:bg-gray-800 text-slate-800 dark:text-white font-semibold'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </div>
+                {Boolean(item.badge) && (
+                  <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1">
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
       </aside>
 

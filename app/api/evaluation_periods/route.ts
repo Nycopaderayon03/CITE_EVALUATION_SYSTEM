@@ -156,6 +156,16 @@ export async function PATCH(request: NextRequest) {
     });
     values.push(id);
     await query(`UPDATE evaluation_periods SET ${sets} WHERE id = ?`, values);
+
+    // Cascading child updates: lock/unlock pending evaluations depending on the parent period's status
+    if (updates.status === 'closed') {
+      // Lock any pending evaluations so targets can no longer access them
+      await query("UPDATE evaluations SET status = 'locked' WHERE period_id = ? AND status = 'pending'", [id]);
+    } else if (updates.status === 'active') {
+      // If reopening, drop untouched locked evaluations back to pending
+      await query("UPDATE evaluations SET status = 'pending' WHERE period_id = ? AND status = 'locked'", [id]);
+    }
+
     const updated = await queryOne('SELECT * FROM evaluation_periods WHERE id = ?', [id]);
     return NextResponse.json({ success: true, period: updated });
   } catch (error) {

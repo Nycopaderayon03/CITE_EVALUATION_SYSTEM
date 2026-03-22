@@ -46,8 +46,6 @@ const fetchApi = async (url: string, options?: RequestInit) => {
 const FORM_TYPES = [
   { value: 'student-to-teacher', label: 'Student to Teacher' },
   { value: 'peer-review', label: 'Peer Review' },
-  { value: 'self-evaluation', label: 'Self Evaluation' },
-  { value: 'admin-evaluation', label: 'Admin Evaluation' },
 ];
 
 export default function EvaluationFormsPage() {
@@ -115,7 +113,7 @@ export default function EvaluationFormsPage() {
       await fetchApi(`/forms?id=${id}`, { method: 'DELETE' });
       window.location.reload();
     } catch (err) {
-      alert(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -231,50 +229,79 @@ export default function EvaluationFormsPage() {
           </Button>
         </div>
 
-        {loading ? (
-          <p className="text-center text-gray-500 py-12">Loading forms...</p>
-        ) : forms.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">No evaluation forms yet.</p>
-              <Button variant="primary" onClick={openNewForm}>Create Your First Form</Button>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          {loading ? (
+            <p className="text-center text-gray-500 py-12">Loading forms...</p>
+          ) : forms.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-gray-500 dark:text-gray-400 mb-4">No evaluation forms yet.</p>
+                <Button variant="primary" onClick={openNewForm}>Create Your First Form</Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {forms.map((form: any) => {
+                const criteriaArr = Array.isArray(form.criteria) ? form.criteria : [];
+                const criteriaCount = criteriaArr.length;
+                const questionCount = criteriaArr.reduce((s: number, c: any) => s + (c.questions?.length || 0), 0);
+                return (
+                  <Card key={form.id} className="hover:shadow-md transition">
+                    <CardContent className="pt-6">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{form.name}</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {FORM_TYPES.find(t => t.value === form.type)?.label || form.type}
+                            {' '} &middot; {criteriaCount} criteria &middot; {questionCount} questions
+                          </p>
+                          {form.description && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{form.description}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openEditForm(form)} className="gap-1">
+                            <Edit className="w-3 h-3" /> Edit
+                          </Button>
+                          <Button variant="danger" size="sm" onClick={() => deleteForm(form.id)} className="gap-1">
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        
+        <div className="lg:col-span-1 space-y-4 flex flex-col">
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Forms Saved</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{forms.length}</p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-3">
-            {forms.map((form: any) => {
-              const criteriaArr = Array.isArray(form.criteria) ? form.criteria : [];
-              const criteriaCount = criteriaArr.length;
-              const questionCount = criteriaArr.reduce((s: number, c: any) => s + (c.questions?.length || 0), 0);
-              return (
-                <Card key={form.id} className="hover:shadow-md transition">
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{form.name}</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {FORM_TYPES.find(t => t.value === form.type)?.label || form.type}
-                          {' '} &middot; {criteriaCount} criteria &middot; {questionCount} questions
-                        </p>
-                        {form.description && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{form.description}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEditForm(form)} className="gap-1">
-                          <Edit className="w-3 h-3" /> Edit
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => deleteForm(form.id)} className="gap-1">
-                          <Trash2 className="w-3 h-3" /> Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Student Evaluations</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {forms.filter((f: any) => f.type === 'student-to-teacher').length}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Peer Evaluations</p>
+              <p className="text-3xl font-bold text-purple-600">
+                {forms.filter((f: any) => f.type === 'peer-review').length}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
       </div>
     );
   }
@@ -282,8 +309,8 @@ export default function EvaluationFormsPage() {
   // ── EDITOR VIEW ──
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => { setView('list'); resetEditor(); }} className="gap-1">
+      <div className="flex items-center gap-4 mb-2">
+        <Button variant="secondary" size="sm" onClick={() => { setView('list'); resetEditor(); }} className="gap-2 shadow-sm bg-white/80 backdrop-blur hover:bg-white text-gray-800 border-0">
           <ArrowLeft className="w-4 h-4" /> Back
         </Button>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -340,62 +367,91 @@ export default function EvaluationFormsPage() {
           {criteria.length === 0 && (
             <p className="text-center text-gray-500 dark:text-gray-400 py-6">No criteria added yet. Click "Add Criteria" to begin.</p>
           )}
-          {criteria.map((c) => (
-            <div key={c.id} className="border border-gray-200 dark:border-gray-700 rounded-lg">
-              {/* Criteria row */}
-              <div className="flex items-center gap-3 p-4">
-                <button
-                  onClick={() => setExpandedCriteria(expandedCriteria === c.id ? null : c.id)}
-                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  {expandedCriteria === c.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-                <input
-                  type="text"
-                  value={c.name}
-                  onChange={e => updateCriteria(c.id, 'name', e.target.value)}
-                  placeholder="Criteria name"
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                <div className="flex items-center gap-1">
-                  <span className="text-sm text-gray-500">Weight:</span>
+          {criteria.map((c, index) => (
+            <div key={c.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-gray-50/50 dark:bg-gray-800/30">
+              {/* Criteria Header Row */}
+              <div className="flex flex-col md:flex-row md:items-center gap-4 p-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700/50">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-100 dark:bg-gray-700 font-medium text-xs text-gray-500">
+                    {index + 1}
+                  </div>
                   <input
-                    type="number"
-                    value={c.weight}
-                    onChange={e => updateCriteria(c.id, 'weight', Number(e.target.value))}
-                    className="w-16 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-center"
-                    min={0}
-                    max={100}
+                    type="text"
+                    value={c.name}
+                    onChange={e => updateCriteria(c.id, 'name', e.target.value)}
+                    placeholder="Enter criteria name (e.g., Professionalism)"
+                    className="flex-1 bg-transparent border-0 focus:ring-0 text-base font-medium px-0 text-gray-900 dark:text-white placeholder-gray-400 outline-none"
                   />
-                  <span className="text-sm text-gray-500">%</span>
                 </div>
-                <Badge variant={(c.questions?.length || 0) > 0 ? 'success' : 'secondary'}>
-                  {c.questions?.length || 0} Q
-                </Badge>
-                <Button variant="ghost" size="sm" onClick={() => openQuestions(c.id)} className="gap-1">
-                  <Plus className="w-3 h-3" /> Questions
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => removeCriteria(c.id)}>
-                  <Trash2 className="w-4 h-4 text-red-500" />
-                </Button>
+                
+                <div className="flex items-center gap-4 sm:justify-end">
+                  <div className="flex items-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+                    <span className="text-xs text-gray-500 font-medium mr-2 uppercase tracking-wide">Weight</span>
+                    <input
+                      type="number"
+                      value={c.weight}
+                      onChange={e => updateCriteria(c.id, 'weight', Number(e.target.value))}
+                      className="w-12 bg-transparent border-0 p-0 text-center font-semibold text-gray-900 dark:text-white focus:ring-0 outline-none"
+                      min={0}
+                      max={100}
+                    />
+                    <span className="text-sm font-medium text-gray-500 ml-1">%</span>
+                  </div>
+
+                  <div className="flex items-center gap-1 border-l border-gray-200 dark:border-gray-700 pl-4">
+                    <Button variant="outline" size="sm" onClick={() => openQuestions(c.id)} className="gap-2 shrink-0">
+                      <Badge variant={(c.questions?.length || 0) > 0 ? 'success' : 'secondary'} className="px-1.5 min-w-[1.5rem] flex items-center justify-center">
+                        {c.questions?.length || 0}
+                      </Badge>
+                      Questions
+                    </Button>
+                    <button
+                      onClick={() => setExpandedCriteria(expandedCriteria === c.id ? null : c.id)}
+                      className="p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                      title="Toggle questions preview"
+                    >
+                      {expandedCriteria === c.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    </button>
+                    <button
+                      onClick={() => removeCriteria(c.id)}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
+                      title="Delete criteria"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Expanded questions */}
-              {expandedCriteria === c.id && c.questions.length > 0 && (
-                <div className="px-4 pb-4 pt-0 border-t border-gray-200 dark:border-gray-700">
-                  <ol className="list-decimal list-inside space-y-2 mt-3">
-                    {c.questions.map((q) => (
-                      <li key={q.id} className="flex items-start justify-between text-sm text-gray-700 dark:text-gray-300">
-                        <span className="flex-1">{q.text}</span>
-                        <button
-                          onClick={() => removeQuestion(c.id, q.id)}
-                          className="ml-2 text-red-500 hover:text-red-700 text-xs"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
+              {/* Expanded Preview */}
+              {expandedCriteria === c.id && (
+                <div className="p-4 sm:px-6">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Questions under this criteria</h4>
+                    <Button variant="ghost" size="sm" onClick={() => openQuestions(c.id)} className="h-8 text-xs text-blue-600">
+                      <Plus className="w-3 h-3 mr-1" /> Manage Questions
+                    </Button>
+                  </div>
+                  {c.questions.length > 0 ? (
+                    <div className="space-y-2">
+                       {c.questions.map((q, qIndex) => (
+                         <div key={q.id} className="group flex gap-3 text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 p-2.5 rounded-md border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition">
+                           <span className="font-medium text-gray-400">{qIndex + 1}.</span>
+                           <span className="flex-1">{q.text}</span>
+                           <button onClick={() => removeQuestion(c.id, q.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                             <Trash2 className="w-4 h-4"/>
+                           </button>
+                         </div>
+                       ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 bg-white dark:bg-gray-800 rounded border border-dashed border-gray-300 dark:border-gray-700">
+                      <p className="text-sm text-gray-500">No questions added yet.</p>
+                      <Button variant="ghost" size="sm" onClick={() => openQuestions(c.id)} className="mt-2 text-blue-600">
+                        Add Questions
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -429,39 +485,60 @@ export default function EvaluationFormsPage() {
       <Modal
         isOpen={questionModalOpen}
         onClose={() => setQuestionModalOpen(false)}
-        title={`Add Questions — ${activeCriteria?.name || 'Criteria'}`}
+        title={activeCriteria ? `Questions for "${activeCriteria.name || 'Untitled Criteria'}"` : 'Manage Questions'}
         size="lg"
       >
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              placeholder="e.g. The instructor explains concepts clearly."
-              value={questionInput}
-              onChange={e => setQuestionInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addQuestion(); }}
-            />
-            <Button variant="primary" onClick={addQuestion}>Add</Button>
+        <div className="space-y-6">
+          <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Add New Question
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                placeholder="e.g., The instructor explains concepts clearly..."
+                value={questionInput}
+                onChange={e => setQuestionInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addQuestion(); }}
+                autoFocus
+              />
+              <Button variant="primary" onClick={addQuestion} className="px-6">Add</Button>
+            </div>
           </div>
 
-          {activeCriteria && activeCriteria.questions.length > 0 && (
-            <ol className="list-decimal list-inside space-y-2 mt-4">
-              {activeCriteria.questions.map((q) => (
-                <li key={q.id} className="flex items-start justify-between py-1">
-                  <span className="text-gray-700 dark:text-gray-300">{q.text}</span>
-                  <button
-                    onClick={() => removeQuestion(activeCriteria.id, q.id)}
-                    className="ml-2 text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              Current Questions
+              <Badge variant="secondary">{activeCriteria?.questions.length || 0}</Badge>
+            </h4>
+            
+            {activeCriteria && activeCriteria.questions.length > 0 ? (
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
+                {activeCriteria.questions.map((q, idx) => (
+                  <div key={q.id} className="group flex items-start gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-blue-300 dark:hover:border-blue-700 transition">
+                    <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold mt-0.5">
+                      {idx + 1}
+                    </div>
+                    <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{q.text}</span>
+                    <button
+                      onClick={() => removeQuestion(activeCriteria.id, q.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition opacity-0 group-hover:opacity-100"
+                      title="Delete question"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 px-4 bg-gray-50 dark:bg-gray-800/30 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                <p className="text-gray-500 dark:text-gray-400 text-sm">No questions added yet. Type a question above and click "Add".</p>
+              </div>
+            )}
+          </div>
 
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end pt-2 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4">
             <Button variant="primary" onClick={() => setQuestionModalOpen(false)}>Done</Button>
           </div>
         </div>

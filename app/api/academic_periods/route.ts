@@ -150,6 +150,18 @@ export async function PATCH(request: NextRequest) {
         }
       }
     }
+
+    if (updates.is_archived === 0) {
+      const pToUnlock: any = await queryOne('SELECT * FROM academic_periods WHERE id = ?', [id]);
+      if (pToUnlock) {
+        await query('UPDATE courses SET is_archived = 0 WHERE academic_year = ? AND semester = ?', [pToUnlock.academic_year, pToUnlock.semester]);
+        await query('UPDATE evaluation_periods SET status = \'active\' WHERE academic_period_id = ? AND status = \'closed\'', [id]);
+        await query('UPDATE evaluations SET is_archived = 0 WHERE period_id IN (SELECT id FROM evaluation_periods WHERE academic_period_id = ?)', [id]);
+        await query('UPDATE evaluations SET status = \'pending\' WHERE status = \'locked\' AND period_id IN (SELECT id FROM evaluation_periods WHERE academic_period_id = ?)', [id]);
+        await query('UPDATE comments SET is_archived = 0 WHERE created_at >= ? AND created_at <= ?', [pToUnlock.start_date, pToUnlock.end_date]);
+      }
+    }
+
     const sets = fields.map(f => `${f} = ?`).join(', ');
     const values = fields.map(f => (updates as any)[f]);
     values.push(id);
@@ -178,6 +190,28 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'id query param required' }, { status: 400 });
     }
+
+    // Deep cascade: Delete all evaluation responses linked to evaluations inside this academic period
+    await query(
+      `DELETE er FROM evaluation_responses er
+       JOIN evaluations e ON er.evaluation_id = e.id
+       JOIN evaluation_periods ep ON e.period_id = ep.id
+       WHERE ep.academic_period_id = ?`,
+      [id]
+    );
+
+    // Deep cascade: Delete evaluations inside this academic period
+    await query(
+      `DELETE e FROM evaluations e
+       JOIN evaluation_periods ep ON e.period_id = ep.id
+       WHERE ep.academic_period_id = ?`,
+      [id]
+    );
+
+    // Deep cascade: Delete evaluation periods linked to this academic period
+    await query('DELETE FROM evaluation_periods WHERE academic_period_id = ?', [id]);
+
+    // Finally, delete the academic period itself
     await query('DELETE FROM academic_periods WHERE id = ?', [id]);
     return NextResponse.json({ success: true });
   } catch (error) {

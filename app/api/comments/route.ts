@@ -29,6 +29,12 @@ async function verifyToken(token: string) {
 // GET /api/comments?entity_type=course&entity_id=course-1
 export async function GET(request: NextRequest) {
   try {
+    const token = getAuthToken(request);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const decoded: any = await verifyToken(token);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+
     const url = new URL(request.url);
     const entityType = url.searchParams.get('entity_type');
     const entityId = url.searchParams.get('entity_id');
@@ -37,10 +43,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
     }
 
-    const rows: any = await query(
-      'SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, u.role as author_role, c.content, c.rating, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.entity_type = ? AND c.entity_id = ? ORDER BY c.created_at DESC',
-      [entityType, entityId]
-    );
+    let sqlQuery = 'SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, u.role as author_role, c.content, c.rating, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.entity_type = ? AND c.entity_id = ?';
+    if (decoded.role !== 'dean') {
+      sqlQuery += ' AND c.is_archived = 0';
+    }
+    sqlQuery += ' ORDER BY c.created_at DESC';
+
+    const rows: any = await query(sqlQuery, [entityType, entityId]);
 
     return NextResponse.json({ success: true, comments: rows });
   } catch (err) {

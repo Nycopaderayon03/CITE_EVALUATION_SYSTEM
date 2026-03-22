@@ -7,8 +7,9 @@ import { RatingScale } from '@/components/RatingScale';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { Alert } from '@/components/ui/Alert';
 import { useFetch } from '@/hooks';
-import { CheckCircle, Clock, MessageSquare, BarChart3 } from 'lucide-react';
+import { CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
 
 interface PeerEvaluation {
@@ -35,7 +36,8 @@ export default function PeerEvaluation() {
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations');
+  const [error, setError] = useState<string | null>(null);
+  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations?history=true');
   const { data: periodData, loading: periodLoading } = useFetch<any>('/evaluation_periods?status=active');
   const [evaluationList, setEvaluationList] = useState<PeerEvaluation[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -153,6 +155,7 @@ export default function PeerEvaluation() {
       });
       setEvaluationList(updatedList);
       setSubmitted(true);
+      setError(null);
       setTimeout(() => {
         setSelectedPeer(null);
         setRatings({});
@@ -160,7 +163,7 @@ export default function PeerEvaluation() {
         setSubmitted(false);
       }, 2000);
     } catch (err) {
-      alert(`Error submitting evaluation: ${err}`);
+      setError(`Error submitting evaluation: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -170,17 +173,7 @@ export default function PeerEvaluation() {
   const pendingCount = evaluationList.filter(p => p.status === 'pending').length;
   const completed = evaluationList.filter(p => p.status === 'completed').length;
 
-  // compute average score given in completed peer reviews
-  const avgScoreGiven = (() => {
-    const completedEvals = evaluationList.filter(p => p.status === 'completed' && p.responses?.length);
-    if (!completedEvals.length) return 0;
-    const totalAvg = completedEvals.reduce((acc, p) => {
-      const vals = (p.responses || []).map((r: any) => Number(r.rating ?? 0)).filter((v: number) => v > 0);
-      const avg = vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
-      return acc + avg;
-    }, 0);
-    return Math.round((totalAvg / completedEvals.length) * 10) / 10;
-  })();
+
 
   // Check if all questions are answered
   const answeredCount = Object.keys(ratings).length;
@@ -199,8 +192,8 @@ export default function PeerEvaluation() {
             </p>
           </div>
           {completed > 0 && (
-            <Button variant="outline" onClick={() => setShowHistory(true)} className="gap-2">
-              <MessageSquare className="w-4 h-4" />
+            <Button variant="primary" size="lg" onClick={() => setShowHistory(true)} className="gap-2 shadow-md px-6 py-3">
+              <MessageSquare className="w-5 h-5" />
               View History
             </Button>
           )}
@@ -276,46 +269,22 @@ export default function PeerEvaluation() {
           </p>
         </div>
         <div className="flex gap-2">
-
-          <Button variant="outline" onClick={() => setShowHistory(true)} className="gap-2">
-            <MessageSquare className="w-4 h-4" />
+          <Button variant="primary" size="lg" onClick={() => setShowHistory(true)} className="gap-2 shadow-md px-6 py-3">
+            <MessageSquare className="w-5 h-5" />
             View History
           </Button>
         </div>
       </div>
+      
+      {error && (
+        <Alert variant="error" title="Submission Error">
+          {error}
+        </Alert>
+      )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <Clock className="w-8 h-8 mx-auto text-orange-600 mb-2" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Pending</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <CheckCircle className="w-8 h-8 mx-auto text-green-600 mb-2" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Completed</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{completed}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <BarChart3 className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Avg Score Given</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{avgScoreGiven}/5</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {!selectedPeer ? (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          {!selectedPeer ? (
         <>
           {/* Pending Evaluations */}
           <div>
@@ -457,7 +426,30 @@ export default function PeerEvaluation() {
             </Card>
           )}
         </>
-      )}
+          )}
+        </div>
+
+        <div className="space-y-4 flex flex-col">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <Clock className="w-8 h-8 mx-auto text-orange-600 mb-2" />
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Pending</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <CheckCircle className="w-8 h-8 mx-auto text-green-600 mb-2" />
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Completed</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{completed}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

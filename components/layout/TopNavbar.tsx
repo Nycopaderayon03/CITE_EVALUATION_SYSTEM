@@ -4,7 +4,6 @@ import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Dropdown } from '@/components/ui/Dropdown';
-import { RoleSwitcher } from './RoleSwitcher';
 
 export function TopNavbar() {
   const { theme, setTheme } = useTheme();
@@ -33,8 +32,6 @@ export function TopNavbar() {
             </div>
           )}
 
-          {/* Role Switcher */}
-          <RoleSwitcher />
 
           {/* Theme Toggle */}
           <button

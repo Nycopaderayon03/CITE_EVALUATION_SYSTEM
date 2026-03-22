@@ -13,10 +13,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { useFetch } from '@/hooks';
-import { curriculum } from '@/data/curriculum';
 import { ChevronDown, ChevronUp, Users } from 'lucide-react';
 
-type CurriculumProgram = keyof typeof curriculum;
+type CurriculumProgram = 'BSIT' | 'BSEMC';
 
 type ClassGroup = {
   key: string;
@@ -31,8 +30,11 @@ export default function ClassesPage() {
   const [filterYear, setFilterYear] = useState('');
   const [expandedClass, setExpandedClass] = useState<string | null>(null);
 
-  const { data: usersData, loading: isLoading } = useFetch<any>('/users');
-  const { data: academicPeriodsData } = useFetch<any>('/academic_periods');
+  const { data: usersData, loading: usersLoading } = useFetch<any>('/users');
+  const { data: academicPeriodsData, loading: periodsLoading } = useFetch<any>('/academic_periods');
+  const { data: curriculumDataRes, loading: currLoading } = useFetch<any>('/curriculum');
+
+  const isLoading = usersLoading || periodsLoading || currLoading;
 
   const activePeriod = useMemo(() => {
     if (!academicPeriodsData?.periods) return null;
@@ -89,8 +91,8 @@ export default function ClassesPage() {
 
   // Get subjects for a class based on active semester
   const getSubjectsForClass = (cls: ClassGroup) => {
-    if (!semesterLabel) return [];
-    const programData = curriculum[cls.program as CurriculumProgram];
+    if (!semesterLabel || !curriculumDataRes?.curriculum) return [];
+    const programData = curriculumDataRes.curriculum[cls.program as CurriculumProgram];
     if (!programData) return [];
     const yearKey = `${cls.yearLevel === 1 ? '1st' : cls.yearLevel === 2 ? '2nd' : cls.yearLevel === 3 ? '3rd' : '4th'} Year`;
     const yearData = programData[yearKey as keyof typeof programData] as any;
@@ -107,20 +109,22 @@ export default function ClassesPage() {
   const totalStudents = classes.reduce((sum, c) => sum + c.students.length, 0);
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto p-4">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Classes</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
+    <div className="space-y-6 max-w-5xl mx-auto p-4">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Classes</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
           View classes grouped by program, year level, and section.
           {activePeriod && (
-            <span className="block mt-1">
-              Active period: <strong>{activePeriod.name}</strong> ({activePeriod.academic_year} — {semesterLabel})
+            <span className="block mt-0.5 text-blue-600 dark:text-blue-400 font-medium">
+              Active period: {activePeriod.name} ({activePeriod.academic_year} — {semesterLabel})
             </span>
           )}
         </p>
       </div>
 
-      <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3 space-y-6">
+          <Card>
         <CardHeader>
           <CardTitle>Filter Classes</CardTitle>
           <CardDescription>{classes.length} class{classes.length !== 1 ? 'es' : ''} with {totalStudents} total students</CardDescription>
@@ -255,6 +259,32 @@ export default function ClassesPage() {
             </CardContent>
           </Card>
         )}
+          </div>
+        </div>
+
+        {/* Sidebar Metrics */}
+        <div className="lg:col-span-1 space-y-4 flex flex-col">
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Classes</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{classes.length}</p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Enrolled</p>
+              <p className="text-3xl font-bold text-blue-600">{totalStudents}</p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Active Programs</p>
+              <p className="text-3xl font-bold text-purple-600">
+                {[...new Set(classes.map(c => c.program))].length}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

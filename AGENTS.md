@@ -12,7 +12,7 @@ Add yourself when you start work. Update status as you go.
 |----------|-------|--------|---------------|--------------|
 | claude-opus | Pre-slice + Slice 1 + Slice 3 + Eval Setup Overhaul | Complete | see Communication Log | 2026-03-18 |
 | copilot | Enrollment Feature | Planning | `agents/copilot/PLAN.md`, `database/schema.sql` | 2026-03-18 |
-| antigravity | Slice 3 | Complete | `app/teacher/layout.tsx`, `app/dean/reports/page.tsx`, `app/globals.css` | 2026-03-20 |
+| antigravity | Slice 3 | Complete | `app/teacher/layout.tsx`, `app/dean/reports/page.tsx`, `app/globals.css`, `app/dean/dashboard/page.tsx`, `app/dean/forms/page.tsx` | 2026-03-22 |
 
 ---
 
@@ -196,6 +196,54 @@ Log your changes here so other agents have context. Most recent at the bottom.
 **Topic**: Theme Application
 
 - `app/globals.css`: Updated the core system background (`body`) to use the global pastel purple-to-white gradient theme (`bg-gradient-to-r from-[#e4c4f9] to-[#fcfaff]`) as requested across all pages. Includes a corresponding dark mode aesthetic (`dark:from-[#2d1b42] dark:to-[#110a1a]`).
+
+### antigravity — 2026-03-22
+**To**: All
+**Topic**: Dean UI Updates
+
+- `app/dean/dashboard/page.tsx`: Removed "Completion Rate" and "Pending Actions" cards from the dashboard grid. Cleaned up unused variables and imports.
+- `app/dean/dashboard/page.tsx`: Converted the "Active Evaluation Period" alert styling on the dashboard from a "warning" variant to an "info" variant to make it look neutral and contextual.
+- `app/dean/forms/page.tsx`: Removed "Self Evaluation" and "Admin Evaluation" options from the Form Type dropdown list.
+- `app/dean/reports/page.tsx`: Removed "Total Evaluations" card from Reports dashboard and adjusted grid layout.
+- `app/dean/reports/page.tsx`: Updated export to feature an organized report template with "COLLEGE EVALUATION SYSTEM" branding, title, and proper formatted headers.
+- `app/dean/reports/page.tsx`: Expanded reports to strictly evaluate and display all specified data sections (trends, improvement areas, completion stats) exactly as they are described visually.
+- `app/dean/reports/page.tsx`: Integrates `jsPDF` and `jspdf-autotable` to generate actual native PDF document variants rather than raw text Blob overlays, effectively preventing "corrupted/damaged file" errors upon downloading.
+- `app/dean/reports/page.tsx`: Fixed the `[object Object]` rendering bug in Course Reports by mapping evaluation arrays to their `.length` total counts.
+- `app/dean/reports/page.tsx`: Removed the Search input field and the Department & Instructor dropdown filters from the report generator dashboard.
+- `app/dean/users/page.tsx`: Removed "Administrator" from the role dropdown when adding or editing a user to restrict standard admin creation.
+- `app/dean/users/page.tsx`: Replaced all raw browser `window.alert()` popup messages across the dashboard with embedded, auto-dismissing `Alert` UI components for a polished feel.
+- `app/dean/users/page.tsx` & `app/api/users/route.ts`: Integrated a custom password field securely mapped to the creation form. The dashboard is now fully connected to the backend API (`POST`/`PATCH`/`DELETE`) to enact direct database-driven persistence and deletion of registered users.
+- `app/dean/evaluations/page.tsx`: Removed the "Select Subject" dropdown and its prerequisite block mappings from the Dean generic evaluation modal.
+- `app/teacher/results/page.tsx`: Removed the "View Detailed Report" link component inside the Results by Course mapped grid blocks.
+- `app/teacher/dashboard/page.tsx`: Converted the "Peer Reviews" analytics card to track "Pending tasks" instead of "Completed" evaluations.
+- `app/api/evaluations/route.ts`: Linked evaluation resets to synchronously clear their orphaned duplicate anonymous feedback from the `comments` table.
+- `package.json`: Swapped the dev rendering engine from standard Webpack to Rust-based `Turbopack` (`--turbo`) for significantly faster live compilations.
+
+### antigravity — 2026-03-22
+**To**: All
+**Topic**: Remove Export Report button & Fix History Dropdown
+
+- `app/student/dashboard/page.tsx`: Removed the "Export Report" button and its respective csv download logics.
+- `app/student/history/page.tsx`: Removed the "Download PDF" button and its respective download logic.
+- `app/student/history/page.tsx`: Dynamically generated available "Semesters" based on actual `historyData` evaluations instead of hardcoded strings, while fixing the filtering implementation to truly sort historical records.
+- `app/student/profile/page.tsx`: Locked down the "Program" property by replacing its dropdown with a read-only disabled input mapping, preventing students from editing their assigned course. Also displayed a fixed "Section" box under the same edit layer.
+- `app/student/profile/page.tsx`: Completely removed the "Edit Profile" button and its respective state block, converting the page into a strict read-only profile view with only the "Change Password" capability.
+- `app/student/profile/page.tsx` & `app/api/users/route.ts`: Integrated an "Old Password" requirement for standard users when changing passwords. The backend strictly cross-checks the current password before proceeding.
+- `app/student/dashboard/page.tsx`: Removed the illogical `trend` percentage displays from all dashboard analytics cards (e.g., "Days Left" showing `-38%`).
+- `app/dean/evaluations/page.tsx`: Enabled the "Lock Option" for all "Pending" evaluations. Deans can now instantly disable access to specific evaluation targets before they are even filled out, preventing unmatched subjects from being accessed. Unlocking a never-touched locked record will intuitively drop it back to "pending".
+- `app/teacher/classes/page.tsx` & `app/teacher/dashboard/page.tsx`: Disabled the "counting of students per subject" tracking logic, hiding the "Total Students" analytics card alongside the visual numbers attached to individual class elements.
+- `app/teacher/peer/page.tsx`: Removed the "Avg Score Given" analytics card and computation from the topmost metrics area.
+- `app/teacher/results/page.tsx`: Removed the "Print" & "Share" buttons along with their respective logic layers.
+- `app/teacher/results/page.tsx`: Removed the "Completion Rate" and "Peer Reviews Completed" data cards from the key metrics grid, dropping its column count to 2.
+- `app/teacher/results/page.tsx`: Removed the "Feedback Sentiment" card containing the calculated array loops used to compute positive/neutral/negative distributions.
+- `components/layout/TopNavbar.tsx`: Removed the "RoleSwitcher" dropdown utility from the core application header to prevent users from fast-swapping contexts.
+- `app/dean/dashboard/page.tsx`: Increased the size and weight of the root "Dean Dashboard" text string wrapper to `text-4xl font-bold` to match standard dashboard headers.
+- `database/schema.sql`, `app/api/archive/route.ts`, & `app/dean/academic/page.tsx`: Built a global "Archive All Data" operation allowing Deans to natively lock away evaluation periods, deprecate academic frames, and safely freeze core subjects by mapping `is_archived` boolean columns inside SQL. This effortlessly wipes the user/teacher dashboards clean to prepare for a new semester rollover while retaining full historical history.
+- `components/ui/Button.tsx`: Integrated global `inline-flex items-center justify-center` styling defaults into the root Button definition to prevent embedded layout icons from spontaneously breaking line placement.
+- `app/dean/users/page.tsx`: Removed the "Export" button and its local layout logic from the User Management dashboard.
+- `app/dean/users/page.tsx`: Increased the size of the "Add User" creation button.
+- `app/dean/audit/page.tsx`: Removed the "Submissions" log count analytic card and scaled the metrics grid to fit the rest perfectly.
+
 
 ---
 

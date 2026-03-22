@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Alert } from '@/components/ui/Alert';
 import { Eye, EyeOff, Moon, Sun } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 import { getRoleDashboardPath } from '@/utils/helpers';
 
 export default function LoginPage() {
@@ -21,6 +22,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Captcha State
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -37,6 +41,10 @@ export default function LoginPage() {
         throw new Error('Please enter both email and password');
       }
 
+      if (!captchaToken) {
+        throw new Error('Please verify that you are not a robot by completing the CAPTCHA.');
+      }
+
       // Call backend API for email/password authentication
       const response = await fetch('/api/auth', {
         method: 'POST',
@@ -47,6 +55,7 @@ export default function LoginPage() {
           action: 'email-login',
           email: email,
           password: password,
+          captchaToken: captchaToken,
         }),
       });
 
@@ -71,10 +80,11 @@ export default function LoginPage() {
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      } finally {
+        setIsLoading(false);
+      }
+    };
+  
 
   if (!mounted) return null;
   return (
@@ -164,7 +174,8 @@ export default function LoginPage() {
                 </Alert>
               )}
 
-              {/* Email Input */}
+              <form onSubmit={handleLoginWithEmail} className="space-y-6">
+                {/* Email Input */}
               <div>
                 <div className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   Institutional Email
@@ -211,11 +222,20 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert('Please contact the admin to recover your password.')}
+                  onClick={() => setError('Please contact the admin to recover your password.')}
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
                 >
                   Forgot password? Contact Admin
                 </button>
+              </div>
+
+              {/* Google reCAPTCHA */}
+              <div className="flex justify-center items-center w-full py-2">
+                <ReCAPTCHA
+                  sitekey="6Ld6eJMsAAAAABdiQZuwfYyWptTppshpF3ufaA7b"
+                  onChange={(token) => setCaptchaToken(token)}
+                  theme={theme === 'dark' ? 'dark' : 'light'}
+                />
               </div>
 
               {/* Login Button */}
@@ -233,6 +253,8 @@ export default function LoginPage() {
                   'Sign In'
                 )}
               </button>
+              
+              </form>
 
               {/* Support links removed per design */}
             </CardContent>

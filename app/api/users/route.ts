@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 function getAuthToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -90,12 +91,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, year_level, section, course, password } = body;
+    const { id, name, year_level, section, course, password, oldPassword, role } = body;
+
+    const targetUserId = (decoded.role === 'dean' || decoded.role === 'admin') && id ? id : decoded.userId;
 
     // Get current user from database
     const user: any = await queryOne(
-      'SELECT id, name, email, role, course, year_level, section FROM users WHERE id = ?',
-      [decoded.userId]
+      'SELECT id, name, email, role, course, year_level, section, password AS currentPassword FROM users WHERE id = ?',
+      [targetUserId]
     );
 
     if (!user) {
@@ -103,6 +106,15 @@ export async function PATCH(request: NextRequest) {
         { error: 'User not found' },
         { status: 404 }
       );
+    }
+
+    if (password && decoded.role !== 'dean' && decoded.role !== 'admin') {
+      if (!oldPassword) {
+        return NextResponse.json({ error: 'Old password is required' }, { status: 400 });
+      }
+      if (user.currentPassword !== oldPassword) {
+        return NextResponse.json({ error: 'Incorrect old password' }, { status: 401 });
+      }
     }
 
     // Build dynamic update
@@ -113,12 +125,13 @@ export async function PATCH(request: NextRequest) {
     if (section !== undefined) { updates.push('section = ?'); params.push(section); }
     if (course !== undefined) { updates.push('course = ?'); params.push(course); }
     if (password !== undefined && password.trim() !== '') { updates.push('password = ?'); params.push(password); }
+    if (role !== undefined && (decoded.role === 'dean' || decoded.role === 'admin')) { updates.push('role = ?'); params.push(role); }
 
     if (updates.length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    params.push(decoded.userId);
+    params.push(targetUserId);
     await query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
 
     // Auto-enroll if student updated year_level or section
@@ -163,7 +176,7 @@ export async function PATCH(request: NextRequest) {
 
     const updated: any = await queryOne(
       'SELECT id, name, email, role, course, year_level, section FROM users WHERE id = ?',
-      [decoded.userId]
+      [targetUserId]
     );
 
     return NextResponse.json({
@@ -177,5 +190,62 @@ export async function PATCH(request: NextRequest) {
       { error: 'Internal server error', details: String(error) },
       { status: 500 }
     );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const token = getAuthToken(request);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const decoded: any = verifyToken(token);
+    if (!decoded || (decoded.role !== 'dean' && decoded.role !== 'admin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, email, password, role, course, year_level, section } = body;
+
+    if (!name || !email || !password || !role) {
+      return NextResponse.json({ error: 'Name, email, password, and role are required' }, { status: 400 });
+    }
+
+    const existing: any = await queryOne('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing) {
+      return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
+    }
+
+    const newId = uuidv4();
+    await query(
+      'INSERT INTO users (id, name, email, password, role, course, year_level, section, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
+      [newId, name, email, password, role, course || null, year_level || null, section || null]
+    );
+
+    const created: any = await queryOne('SELECT id, name, email, role, course, year_level, section FROM users WHERE id = ?', [newId]);
+
+    return NextResponse.json({ success: true, user: created });
+  } catch (error) {
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = getAuthToken(request);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const decoded: any = verifyToken(token);
+    if (!decoded || (decoded.role !== 'dean' && decoded.role !== 'admin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) return NextResponse.json({ error: 'User ID required' }, { status: 400 });
+
+    await query('DELETE FROM users WHERE id = ?', [id]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
   }
 }
