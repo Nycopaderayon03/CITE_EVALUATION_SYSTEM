@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const decoded: any = await verifyToken(token);
-    if (!decoded || decoded.role !== 'dean') {
+    if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

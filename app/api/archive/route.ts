@@ -25,6 +25,7 @@ async function verifyToken(token: string) {
     const decoded = jwtLib.verify(token, process.env.JWT_SECRET as string);
     return decoded;
   } catch (error) {
+    if (error) console.debug('JWT error');
     return null;
   }
 }
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = await verifyToken(token);
-    if (!decoded || decoded.role !== 'dean') {
+    if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

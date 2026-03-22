@@ -8,7 +8,7 @@ const globalForDb = globalThis as unknown as { __dbPool?: mysql.Pool };
 const pool = globalForDb.__dbPool ?? mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  password: process.env.DB_PASSWORD as string,
   database: process.env.DB_NAME || 'cite_es',
   waitForConnections: true,
   connectionLimit: 10,

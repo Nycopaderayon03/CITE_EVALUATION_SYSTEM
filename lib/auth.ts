@@ -33,6 +33,7 @@ export function verifyToken(token: string): DecodedToken | null {
     if (decoded.id && !decoded.userId) decoded.userId = decoded.id;
     return decoded;
   } catch (error) {
+    if (error) console.debug('JWT error');
     return null;
   }
 }

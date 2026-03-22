@@ -25,6 +25,7 @@ async function verifyToken(token: string) {
     const decoded = jwtLib.verify(token, process.env.JWT_SECRET as string);
     return decoded;
   } catch (error) {
+    if (error) console.debug('JWT error');
     return null;
   }
 }

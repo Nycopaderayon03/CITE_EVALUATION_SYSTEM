@@ -13,7 +13,7 @@ function getClientIp(request: NextRequest): string {
 async function verifyCaptcha(token: string): Promise<boolean> {
   if (!token) return false;
   try {
-    const secret = '6Ld6eJMsAAAAAN68wmqeAUtbmYyD29hELxiWJZPW';
+    const secret = process.env.RECAPTCHA_SECRET_KEY as string;
     const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

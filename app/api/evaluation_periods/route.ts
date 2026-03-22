@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const decoded: any = verifyToken(token);
-    if (!decoded || decoded.role !== 'dean') {
+    if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const body = await request.json();
@@ -107,7 +107,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const decoded: any = verifyToken(token);
-    if (!decoded || decoded.role !== 'dean') {
+    if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const body = await request.json();
@@ -181,7 +181,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const decoded: any = verifyToken(token);
-    if (!decoded || decoded.role !== 'dean') {
+    if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const url = new URL(request.url);
