@@ -14,7 +14,7 @@ export function Textarea({
   id,
   ...props
 }: TextareaProps) {
-  const textareaId = id || `textarea-${Math.random()}`;
+  const textareaId = id || `textarea-${Date.now().toString(36)}`;
 
   return (
     <div className="w-full">

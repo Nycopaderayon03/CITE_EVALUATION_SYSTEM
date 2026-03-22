@@ -27,7 +27,7 @@ export function generateToken(userId: string, role: string): string {
  */
 export function verifyToken(token: string): DecodedToken | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as DecodedToken;
     // Ensure both userId and id are present for compatibility
     if (decoded.userId && !decoded.id) decoded.id = decoded.userId;
     if (decoded.id && !decoded.userId) decoded.userId = decoded.id;

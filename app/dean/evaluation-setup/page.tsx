@@ -47,7 +47,7 @@ type AssignmentGroup = {
   collapsed: boolean;
 };
 
-const createGroupId = () => Math.random().toString(36).slice(2, 9);
+const createGroupId = () => Date.now().toString(36);
 
 const createEmptyGroup = (): AssignmentGroup => ({
   id: createGroupId(),

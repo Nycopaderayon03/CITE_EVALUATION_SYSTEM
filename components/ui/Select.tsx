@@ -24,7 +24,7 @@ export function Select({
   placeholder,
   ...props
 }: SelectProps) {
-  const selectId = id || `select-${Math.random()}`;
+  const selectId = id || `select-${Date.now().toString(36)}`;
 
   return (
     <div className="w-full">

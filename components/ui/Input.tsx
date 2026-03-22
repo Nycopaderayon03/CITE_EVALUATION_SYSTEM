@@ -14,7 +14,7 @@ export function Input({
   id,
   ...props
 }: InputProps) {
-  const inputId = id || `input-${Math.random()}`;
+  const inputId = id || `input-${Date.now().toString(36)}`;
 
   return (
     <div className="w-full">
