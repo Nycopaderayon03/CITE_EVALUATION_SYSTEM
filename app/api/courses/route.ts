@@ -4,6 +4,11 @@ import { verifyToken, getAuthToken } from '@/lib/auth';
 
 
 
+/**
+ * Handles the HTTP GET request securely.
+ * Verifies the authorization bearer token natively via abstract logic.
+ * Prevents access if user does not match the scoped role mapping.
+ */
 export async function GET(request: NextRequest) {
   try {
     const token = getAuthToken(request);
@@ -14,7 +19,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
         { error: 'Invalid token' },
@@ -97,13 +102,17 @@ export async function GET(request: NextRequest) {
 }
 
 // PATCH updates to a course (assignment, section, semester, etc.)
+/**
+ * Handles the HTTP PATCH request securely.
+ * Applies partial structural updates reliably over database.
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }

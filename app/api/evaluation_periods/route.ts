@@ -13,6 +13,11 @@ function getAuthToken(request: NextRequest): string | null {
 // Remove local verifyToken function as it is now imported
 // async function verifyToken(token: string) { ... }
 
+/**
+ * Handles the HTTP GET request securely.
+ * Verifies the authorization bearer token natively via abstract logic.
+ * Prevents access if user does not match the scoped role mapping.
+ */
 export async function GET(request: NextRequest) {
   try {
     const token = getAuthToken(request);
@@ -61,6 +66,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Handles the HTTP POST request securely.
+ * Mutates system state through parametric execution safely.
+ * Asserts strict JSON structural types directly.
+ */
 export async function POST(request: NextRequest) {
   try {
     const token = getAuthToken(request);
@@ -100,6 +110,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   closed: ['active'],
 };
 
+/**
+ * Handles the HTTP PATCH request securely.
+ * Applies partial structural updates reliably over database.
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const token = getAuthToken(request);
@@ -174,6 +188,10 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+/**
+ * Handles the HTTP DELETE request securely.
+ * Ensures isolated teardowns leveraging foreign cascaded keys securely.
+ */
 export async function DELETE(request: NextRequest) {
   try {
     const token = getAuthToken(request);

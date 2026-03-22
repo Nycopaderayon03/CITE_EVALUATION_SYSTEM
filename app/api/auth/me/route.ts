@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
-import { verifyToken, DecodedToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
 
+/**
+ * Handles the HTTP GET request securely.
+ * Verifies the authorization bearer token natively via abstract logic.
+ * Prevents access if user does not match the scoped role mapping.
+ */
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('Authorization');

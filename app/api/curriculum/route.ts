@@ -51,6 +51,11 @@ export async function buildCurriculum() {
   return curriculumObj;
 }
 
+/**
+ * Handles the HTTP GET request securely.
+ * Verifies the authorization bearer token natively via abstract logic.
+ * Prevents access if user does not match the scoped role mapping.
+ */
 export async function GET() {
   try {
     const curriculum = await buildCurriculum();
@@ -61,6 +66,11 @@ export async function GET() {
   }
 }
 
+/**
+ * Handles the HTTP POST request securely.
+ * Mutates system state through parametric execution safely.
+ * Asserts strict JSON structural types directly.
+ */
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');

@@ -27,6 +27,11 @@ async function verifyCaptcha(token: string): Promise<boolean> {
   }
 }
 
+/**
+ * Handles the HTTP POST request securely.
+ * Mutates system state through parametric execution safely.
+ * Asserts strict JSON structural types directly.
+ */
 export async function POST(request: NextRequest) {
   const clientIp = getClientIp(request);
   const userAgent = request.headers.get('user-agent') || '';

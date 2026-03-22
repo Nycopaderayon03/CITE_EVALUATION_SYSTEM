@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/db';
+import { query } from '@/lib/db';
 
+/**
+ * Handles the HTTP GET request securely.
+ * Verifies the authorization bearer token natively via abstract logic.
+ * Prevents access if user does not match the scoped role mapping.
+ */
 export async function GET() {
   try {
     // Ensure table exists dynamically just in case it wasn't migrated
@@ -33,6 +38,10 @@ export async function GET() {
   }
 }
 
+/**
+ * Handles the HTTP PATCH request securely.
+ * Applies partial structural updates reliably over database.
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();

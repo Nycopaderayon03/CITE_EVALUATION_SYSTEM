@@ -33,13 +33,18 @@ async function verifyToken(token: string) {
  * When a student or teacher hits their dashboard, this catches up any missing
  * evaluation assignments from active evaluation periods.
  */
+/**
+ * Handles the HTTP POST request securely.
+ * Mutates system state through parametric execution safely.
+ * Asserts strict JSON structural types directly.
+ */
 export async function POST(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }

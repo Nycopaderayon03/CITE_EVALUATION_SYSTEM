@@ -4,13 +4,18 @@ import { verifyToken, getAuthToken } from '@/lib/auth';
 
 
 
+/**
+ * Handles the HTTP GET request securely.
+ * Verifies the authorization bearer token natively via abstract logic.
+ * Prevents access if user does not match the scoped role mapping.
+ */
 export async function GET(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -28,13 +33,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Handles the HTTP POST request securely.
+ * Mutates system state through parametric execution safely.
+ * Asserts strict JSON structural types directly.
+ */
 export async function POST(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -80,13 +90,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Handles the HTTP PATCH request securely.
+ * Applies partial structural updates reliably over database.
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -149,13 +163,17 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+/**
+ * Handles the HTTP DELETE request securely.
+ * Ensures isolated teardowns leveraging foreign cascaded keys securely.
+ */
 export async function DELETE(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const decoded: any = await verifyToken(token);
+    const decoded: any = verifyToken(token);
     if (decoded?.role !== 'dean') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
