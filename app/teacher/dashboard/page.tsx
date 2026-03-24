@@ -82,11 +82,22 @@ export default function TeacherDashboard() {
       .finally(() => setReceivedEvalsLoading(false));
   }, [teacherId]);
 
-  const assignedCourses = coursesData?.courses || [];
-  const assignedCount = assignedCourses.length;
-
   // Use received evaluations for stats
   const teacherEvals = receivedEvals;
+
+  // Merge explicit courses with implicit courses from evaluations
+  const assignedCourses = [...(coursesData?.courses || [])];
+  teacherEvals.forEach((evaluation: any) => {
+    if (evaluation.course_id && !assignedCourses.find((c: any) => c.id === evaluation.course_id)) {
+      assignedCourses.push({
+        id: evaluation.course_id,
+        name: evaluation.course_name || evaluation.course?.name,
+        code: evaluation.course_code || evaluation.course?.code,
+      });
+    }
+  });
+
+  const assignedCount = assignedCourses.length;
 
 
   // Compute overall rating from received evaluation responses

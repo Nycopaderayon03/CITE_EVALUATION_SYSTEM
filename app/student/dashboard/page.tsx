@@ -60,8 +60,22 @@ export default function StudentDashboard() {
   const totalCount = evaluations.length;
   const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  // Use enrolled courses count for display, but completion rate based on evaluations
-  const enrolledCount = coursesData?.courses?.length || 0;
+  // Deduplicate courses from evaluations as a fallback if explicit enrollment data is missing
+  const enrolledCourses = coursesData?.courses?.length > 0 
+    ? coursesData.courses 
+    : evaluations.reduce((acc: any[], evaluation: any) => {
+        if (!acc.find((c: any) => c.id === evaluation.course_id)) {
+          acc.push({
+            id: evaluation.course_id,
+            name: evaluation.course_name || evaluation.course?.name,
+            code: evaluation.course_code || evaluation.course?.code,
+            instructor_name: evaluation.evaluatee_name || evaluation.evaluatee?.name
+          });
+        }
+        return acc;
+      }, []);
+
+  const enrolledCount = enrolledCourses.length;
 
   const handleStartEvaluation = () => {
     router.push('/student/evaluations');
@@ -108,7 +122,7 @@ export default function StudentDashboard() {
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">No Courses Assigned</p>
                   <p className="text-gray-600 dark:text-gray-400 mt-2">You don’t have any enrolled courses yet.</p>
                 </div>
-              ) : !evalData?.evaluations?.length ? (
+              ) : totalCount === 0 ? (
                 <div className="text-center py-12">
                   <AlertCircle className="w-12 h-12 mx-auto text-blue-600 mb-4" />
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">No Evaluations Available</p>
@@ -173,7 +187,11 @@ export default function StudentDashboard() {
               <CardDescription>All enrolled courses this semester</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {(coursesData?.courses || []).map((course:any) => {
+              {enrolledCourses.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-gray-500 dark:text-gray-400">No courses enrolled.</p>
+                </div>
+              ) : enrolledCourses.map((course:any) => {
                 const evaluation = evaluations.find((e:any)=>e.course_id === course.id);
                 const isCompleted = evaluation?.status === 'submitted' || evaluation?.status === 'locked';
                 const periodStatus = evaluation?.period?.status || evaluation?.period_status;

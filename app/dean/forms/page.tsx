@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
+import { useConfirmModal } from '@/components/ui/ConfirmModal';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Textarea } from '@/components/ui/Textarea';
@@ -49,6 +50,7 @@ const FORM_TYPES = [
 ];
 
 export default function EvaluationFormsPage() {
+  const { confirm: showConfirm, modalProps, ConfirmModal } = useConfirmModal();
   // View state
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [editingFormId, setEditingFormId] = useState<number | null>(null);
@@ -108,13 +110,20 @@ export default function EvaluationFormsPage() {
   };
 
   const deleteForm = async (id: number) => {
-    if (!confirm('Delete this form? This cannot be undone.')) return;
-    try {
-      await fetchApi(`/forms?id=${id}`, { method: 'DELETE' });
-      window.location.reload();
-    } catch (err) {
-      setError(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+    showConfirm({
+      title: 'Delete Form',
+      message: 'Delete this form? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await fetchApi(`/forms?id=${id}`, { method: 'DELETE' });
+          window.location.reload();
+        } catch (err) {
+          setError(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+    });
   };
 
   // Criteria management
@@ -218,7 +227,7 @@ export default function EvaluationFormsPage() {
   // ── LIST VIEW ──
   if (view === 'list') {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto p-4">
+      <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Evaluation Forms</h1>
@@ -302,13 +311,14 @@ export default function EvaluationFormsPage() {
           </Card>
         </div>
       </div>
+      <ConfirmModal {...modalProps} />
       </div>
     );
   }
 
   // ── EDITOR VIEW ──
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-4">
+    <div className="space-y-6">
       <div className="flex items-center gap-4 mb-2">
         <Button variant="secondary" size="sm" onClick={() => { setView('list'); resetEditor(); }} className="gap-2 shadow-sm bg-white/80 backdrop-blur hover:bg-white text-gray-800 border-0">
           <ArrowLeft className="w-4 h-4" /> Back
@@ -486,7 +496,7 @@ export default function EvaluationFormsPage() {
         isOpen={questionModalOpen}
         onClose={() => setQuestionModalOpen(false)}
         title={activeCriteria ? `Questions for "${activeCriteria.name || 'Untitled Criteria'}"` : 'Manage Questions'}
-        size="lg"
+        size="2xl"
       >
         <div className="space-y-6">
           <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -543,6 +553,7 @@ export default function EvaluationFormsPage() {
           </div>
         </div>
       </Modal>
+      <ConfirmModal {...modalProps} />
     </div>
   );
 }

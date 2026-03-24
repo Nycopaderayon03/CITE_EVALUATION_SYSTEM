@@ -16,11 +16,35 @@ export default function StudentHistory() {
   const [isLoading, setIsLoading] = useState(historyLoading);
   const [semester, setSemester] = useState('current');
   const [selectedEval, setSelectedEval] = useState<string | null>(null);
+  const [selectedForm, setSelectedForm] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     setIsLoading(historyLoading);
   }, [historyLoading]);
+
+  useEffect(() => {
+    if (selectedEval) {
+      const evaluation = historyData?.evaluations?.find((e: any) => e.id === selectedEval);
+      if (evaluation?.period?.form_id) {
+        fetch(`/api/forms?id=${evaluation.period.form_id}`, {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('auth_token')}` },
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.form && data.form.criteria) {
+              const payload = Array.isArray(data.form.criteria) 
+                  ? data.form.criteria 
+                  : typeof data.form.criteria === 'string' ? JSON.parse(data.form.criteria) : [];
+              setSelectedForm({ ...data.form, criteria: payload });
+            }
+          })
+          .catch(err => console.error(err));
+      }
+    } else {
+      setSelectedForm(null);
+    }
+  }, [selectedEval, historyData]);
 
   // JSON export removed per requirement - all downloads now PDF only
 
@@ -200,21 +224,35 @@ export default function StudentHistory() {
                 </div>
               </div>
 
-              <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                {responseItem.responses?.map((resp: any, idx: number) => (
-                  <div key={`${responseItem.id}-${resp.criteriaId}-${idx}`} className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">
-                      {resp.criteriaName || resp.criteria_id || 'Criterion'}
-                    </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{resp.rating || resp.score}/5</span>
-                  </div>
-                ))}
+              <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                {responseItem.responses?.map((resp: any, idx: number) => {
+                  let questionText = resp.criteriaName || resp.criteria_id || 'Criterion';
+                  
+                  if (selectedForm?.criteria) {
+                    for (const c of selectedForm.criteria) {
+                      const q: any = (c.questions || []).find((queryQ: any) => String(queryQ.id) === String(resp.criteria_id));
+                      if (q) {
+                        questionText = q.text;
+                        break;
+                      }
+                    }
+                  }
+
+                  return (
+                    <div key={`${responseItem.id}-${resp.criteria_id || resp.criteriaId || idx}`} className="flex justify-between items-start gap-4">
+                      <span className="text-gray-600 dark:text-gray-300 text-sm">
+                        {questionText}
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-white whitespace-nowrap">{resp.rating || resp.score}/5</span>
+                    </div>
+                  );
+                })}
               </div>
 
-              {responseItem.overallComment && (
+              {(responseItem.comments || responseItem.responses?.find((r: any) => r.comment)?.comment) && (
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Comments:</p>
-                  <p className="text-gray-900 dark:text-white">{responseItem.overallComment}</p>
+                  <p className="text-gray-900 dark:text-white italic">"{responseItem.comments || responseItem.responses?.find((r: any) => r.comment)?.comment}"</p>
                 </div>
               )}
             </CardContent>

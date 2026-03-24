@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useConfirmModal } from '@/components/ui/ConfirmModal';
+import { useAuth } from '@/context/AuthContext';
 import { Plus, Pencil, Trash2, CheckCircle, Archive, Lock, Unlock } from 'lucide-react';
 
 interface AcademicPeriod {
@@ -61,6 +62,15 @@ export default function AcademicPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState<AcademicPeriod | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Auth Verification state
+  const { user } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authAction, setAuthAction] = useState<(() => Promise<void>) | null>(null);
+  const [authPassword, setAuthPassword] = useState('');
+  const [authWarning, setAuthWarning] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   // Form fields
   const [formName, setFormName] = useState('');
@@ -180,22 +190,44 @@ export default function AcademicPage() {
     doSave();
   };
 
+  const executeAuthAction = async () => {
+    if (!authPassword) {
+      setAuthError('Password is required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const res = await fetchApi('/auth', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'email-login', email: user?.email, password: authPassword }),
+      });
+      if (res.success && authAction) {
+        setAuthModalOpen(false);
+        setAuthPassword('');
+        await authAction();
+      }
+    } catch (err: any) {
+      setAuthError('Invalid password');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleDelete = (id: number) => {
-    showConfirm({
-      title: 'Delete Academic Period',
-      message: 'Are you sure you want to delete this academic period? This action cannot be undone and may severely impact related historical records.',
-      confirmLabel: 'Delete Period',
-      variant: 'danger',
-      onConfirm: async () => {
-        try {
-          await fetchApi(`/academic_periods?id=${id}`, { method: 'DELETE' });
-          setPeriods(prev => prev.filter(p => p.id !== id));
-          setFeedback({ type: 'success', message: 'Period deleted successfully.' });
-        } catch (err) {
-          setFeedback({ type: 'error', message: `Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}` });
-        }
-      },
+    setAuthWarning('Are you sure you want to delete this academic period? This action cannot be undone and may severely impact related historical records.');
+    setAuthAction(() => async () => {
+      try {
+        await fetchApi(`/academic_periods?id=${id}`, { method: 'DELETE' });
+        setPeriods(prev => prev.filter(p => p.id !== id));
+        setFeedback({ type: 'success', message: 'Period deleted successfully.' });
+      } catch (err) {
+        setFeedback({ type: 'error', message: `Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}` });
+      }
     });
+    setAuthPassword('');
+    setAuthError('');
+    setAuthModalOpen(true);
   };
 
   const handleSetActive = (id: number) => {
@@ -252,28 +284,26 @@ export default function AcademicPage() {
   };
 
   const handleArchiveAll = () => {
-    showConfirm({
-      title: 'Archive All Data',
-      message: 'Are you sure you want to archive all active courses, evaluation periods, and academic periods? This will safely freeze existing data and completely cleanly reset the portals for students and teachers ahead of a new academic year. Historical evaluation records are preserved.',
-      confirmLabel: 'Archive System',
-      variant: 'danger',
-      onConfirm: async () => {
-        setLoading(true);
-        try {
-          await fetchApi('/archive', { method: 'POST' });
-          setFeedback({ type: 'success', message: 'System archived successfully for the new academic year.' });
-          await loadPeriods();
-        } catch (err) {
-          setFeedback({ type: 'error', message: `Archive failed: ${err instanceof Error ? err.message : 'Unknown error'}` });
-        } finally {
-          setLoading(false);
-        }
-      },
+    setAuthWarning('Are you sure you want to archive all active courses, evaluation periods, and academic periods? This will safely freeze existing data and completely cleanly reset the portals for students and teachers ahead of a new academic year. Historical evaluation records are preserved.');
+    setAuthAction(() => async () => {
+      setLoading(true);
+      try {
+        await fetchApi('/archive', { method: 'POST' });
+        setFeedback({ type: 'success', message: 'System archived successfully for the new academic year.' });
+        await loadPeriods();
+      } catch (err) {
+        setFeedback({ type: 'error', message: `Archive failed: ${err instanceof Error ? err.message : 'Unknown error'}` });
+      } finally {
+        setLoading(false);
+      }
     });
+    setAuthPassword('');
+    setAuthError('');
+    setAuthModalOpen(true);
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-4">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Academic Periods</h1>
@@ -401,7 +431,7 @@ export default function AcademicPage() {
       </div>
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingPeriod ? 'Edit Academic Period' : 'New Academic Period'} size="lg">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingPeriod ? 'Edit Academic Period' : 'New Academic Period'} size="2xl">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -451,6 +481,35 @@ export default function AcademicPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Auth Verification Modal for Dangerous Actions */}
+      <Modal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} title="Security Verification" size="md">
+        <div className="space-y-4">
+          <Alert variant="warning" title="Critical Action">
+            {authWarning}
+          </Alert>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Please enter your administrator password to authorize this execution.
+          </p>
+          <Input
+            type="password"
+            label="Admin Password"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') executeAuthAction(); }}
+            placeholder="••••••••"
+            autoFocus
+          />
+          {authError && <p className="text-sm text-red-600 dark:text-red-400 font-medium">{authError}</p>}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setAuthModalOpen(false)} disabled={authLoading}>Cancel</Button>
+            <Button variant="danger" onClick={executeAuthAction} disabled={!authPassword || authLoading} isLoading={authLoading}>
+              Verify & Proceed
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <ConfirmModal {...modalProps} />
     </div>
   );

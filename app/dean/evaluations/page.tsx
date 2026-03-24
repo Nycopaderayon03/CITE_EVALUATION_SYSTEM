@@ -155,15 +155,27 @@ export default function Evaluations() {
   }, [allEvals]);
 
   // ── Drill-down actions ──
+  const [drillForm, setDrillForm] = useState<any>(null);
+
   const viewPeriod = async (period: any) => {
     setSelectedPeriod(period);
     setEvalsLoading(true);
     setSearchTerm('');
     setFilterType('all');
     setFilterStatus('all');
+    setDrillForm(null);
     try {
-      const data = await fetchApi(`/evaluations?period_id=${period.id}`);
+      const [data, formData] = await Promise.all([
+        fetchApi(`/evaluations?period_id=${period.id}`),
+        period.form_id ? fetchApi(`/forms?id=${period.form_id}`).catch(() => ({ form: null })) : Promise.resolve({ form: null })
+      ]);
       setPeriodEvals(data.evaluations || []);
+      if (formData.form && formData.form.criteria) {
+        const payload = Array.isArray(formData.form.criteria) 
+            ? formData.form.criteria 
+            : typeof formData.form.criteria === 'string' ? JSON.parse(formData.form.criteria) : [];
+        setDrillForm({ ...formData.form, criteria: payload });
+      }
     } catch {
       setPeriodEvals([]);
     } finally {
@@ -558,19 +570,31 @@ export default function Evaluations() {
                   {(selectedEval.responses || []).length === 0 ? (
                     <p className="text-sm text-gray-500">No responses recorded.</p>
                   ) : (
-                    selectedEval.responses.map((r: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-2 border border-gray-100 dark:border-gray-700">
-                        <div className="flex justify-between items-start">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white leading-tight pr-4">
-                            {r.question_text || `Question ${idx + 1}`}
-                          </span>
-                          <span className="font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded text-sm">{r.rating}/5</span>
+                    selectedEval.responses.map((r: any, idx: number) => {
+                      let qText = r.question_text || r.criteria_name || `Question ${idx + 1}`;
+                      if (drillForm?.criteria) {
+                        for (const c of drillForm.criteria) {
+                          const q = (c.questions || []).find((queryQ: any) => String(queryQ.id) === String(r.criteria_id));
+                          if (q) {
+                            qText = q.text; break;
+                          }
+                        }
+                      }
+
+                      return (
+                        <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-2 border border-gray-100 dark:border-gray-700">
+                          <div className="flex justify-between items-start gap-4">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white leading-tight">
+                              {qText}
+                            </span>
+                            <span className="font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded text-sm">{r.rating}/5</span>
+                          </div>
+                          {r.criteria_name && (
+                            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1 block">{r.criteria_name}</span>
+                          )}
                         </div>
-                        {r.criteria_name && (
-                          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1 block">{r.criteria_name}</span>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
                 

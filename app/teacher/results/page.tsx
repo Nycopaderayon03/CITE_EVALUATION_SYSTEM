@@ -273,7 +273,6 @@ export default function TeacherResults() {
             footer={`Based on ${teacherEvals.length || '0'} responses`}
             icon={<TrendingUp className="w-6 h-6" />}
             color="green"
-            trend={4}
           />
 
           {/* Key Insights */}

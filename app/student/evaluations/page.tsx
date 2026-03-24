@@ -155,7 +155,7 @@ export default function StudentEvaluations() {
   }, [formData]);
 
   const answeredCount = Object.keys(ratings).length;
-  const isComplete = totalQuestions > 0 && answeredCount === totalQuestions;
+  const isComplete = totalQuestions > 0 && answeredCount === totalQuestions && comment.trim().length >= 10;
 
   const handleRatingChange = (questionId: string, value: number) => {
     setRatings(prev => ({ ...prev, [questionId]: value }));
@@ -164,7 +164,7 @@ export default function StudentEvaluations() {
   const handleSubmit = async () => {
     if (!selectedEvaluation) return;
     if (!isComplete) {
-      setError('Please answer all questions.');
+      setError('Please answer all questions and provide a comment of at least 10 characters.');
       return;
     }
 
@@ -257,7 +257,7 @@ export default function StudentEvaluations() {
   const hasPendingEvaluations = periodIds.length > 0;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Teacher Evaluations</h1>
         <p className="text-gray-600 mt-2">
@@ -366,11 +366,14 @@ export default function StudentEvaluations() {
 
                     <div className="pt-6 border-t">
                       <Textarea
-                        label="Anonymous Feedback (Optional)"
-                        placeholder="Share any additional comments..."
+                        label="Comment (Anonymous) *"
+                        placeholder="What improvements or suggestions can you give to your IT instructor?"
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
+                        required
+                        minLength={10}
                       />
+                      <p className="text-xs text-gray-500 mt-1">Minimum 10 characters required (currently {comment.length} / 10)</p>
                     </div>
 
                     <div className="flex justify-end gap-3">

@@ -109,7 +109,7 @@ export default function ClassesPage() {
   const totalStudents = classes.reduce((sum, c) => sum + c.students.length, 0);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-4">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Classes</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">

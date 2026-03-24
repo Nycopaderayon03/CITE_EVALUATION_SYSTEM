@@ -104,9 +104,58 @@ export async function POST(request: NextRequest) {
 
     // Process cascading updates to actively assigned courses in the wider system
     if (metadata && metadata.action === 'edit' && metadata.oldCode) {
-      await query('UPDATE courses SET code = ?, name = ? WHERE code = ?', [
-        metadata.newCode, metadata.newName, metadata.oldCode
-      ]);
+      await query(
+        'UPDATE courses SET code = ?, name = ?, course_program = ?, year_level = ?, semester = ? WHERE code = ?', 
+        [
+          metadata.newCode, 
+          metadata.newName,
+          metadata.newProgram || null,
+          metadata.newYear ? parseInt(metadata.newYear) : null,
+          metadata.newSemester === '1st Semester' ? 1 : metadata.newSemester === '2nd Semester' ? 2 : 3,
+          metadata.oldCode
+        ]
+      );
+
+      // Systematically migrate any cached deep assignment bindings across active Evaluation Periods
+      const periods: any = await query('SELECT id, assignments_json FROM evaluation_periods WHERE assignments_json IS NOT NULL');
+      if (Array.isArray(periods)) {
+        for (const p of periods) {
+          let updated = false;
+          let parsed: any;
+          try {
+            parsed = typeof p.assignments_json === 'string' ? JSON.parse(p.assignments_json) : p.assignments_json;
+          } catch(e) { continue; }
+
+          const groups = parsed.groups ? parsed.groups : (parsed.program ? [parsed] : []);
+          for (const group of groups) {
+            // Hot-swap old keys for new target mapping structures
+            if (group.assignments && group.assignments[metadata.oldCode]) {
+              group.assignments[metadata.newCode] = group.assignments[metadata.oldCode];
+              delete group.assignments[metadata.oldCode];
+              updated = true;
+            }
+            if (group.selectedCodes && Array.isArray(group.selectedCodes)) {
+               const idx = group.selectedCodes.indexOf(metadata.oldCode);
+               if (idx !== -1) {
+                 group.selectedCodes[idx] = metadata.newCode;
+                 updated = true;
+               }
+            }
+            if (group.sections && group.sections[metadata.oldCode]) {
+              group.sections[metadata.newCode] = group.sections[metadata.oldCode];
+              delete group.sections[metadata.oldCode];
+              updated = true;
+            }
+          }
+
+          if (updated) {
+            // Apply the new structurally sound block to the source periods safely
+            await query('UPDATE evaluation_periods SET assignments_json = ? WHERE id = ?', [
+              JSON.stringify(parsed), p.id
+            ]);
+          }
+        }
+      }
     }
 
     const latestCurriculum = await buildCurriculum();

@@ -47,7 +47,7 @@ type AssignmentGroup = {
   collapsed: boolean;
 };
 
-const createGroupId = () => Date.now().toString(36);
+const createGroupId = () => Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
 
 const createEmptyGroup = (): AssignmentGroup => ({
   id: createGroupId(),
@@ -615,7 +615,7 @@ export default function EvaluationSetupPage() {
   if (editLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto p-4">
+    <div className="space-y-8">
       <div className="relative text-center">
         {isEditMode && (
           <Button 

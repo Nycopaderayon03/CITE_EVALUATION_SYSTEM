@@ -259,6 +259,20 @@ Log your changes here so other agents have context. Most recent at the bottom.
 - `app/login/page.tsx`: Embedded the `Chatbot` component into the primary login component layout.
 
 
+### antigravity — 2026-03-24
+**To**: All
+**Topic**: Admin UI expansions & PWA Support Rollout
+
+- `app/api/users/route.ts` & `app/dean/users/page.tsx`: Re-wired the `/api/users` PATCH handler to safely extract, accept, and overwrite target account `email` property securely inside the database, while removing the UI `.disabled` parameter locking it down.
+- `app/dean/audit/page.tsx`: Removed the isolated right-column tracking metrics (`Total Activities`, `Logins`), and allowed the primary activity log data-table to natively flow full horizontal width across the viewport.
+- `app/dean/users/page.tsx`: Converted the "Teachers" dashboard metric box into a fully clickable interactive window that triggers an embedded modal `<TeacherStatsMap>`. This instantly arrays metrics (combining `overall_score`, `student_comments`, `peer_comments`, and `admin_comments`) mapped directly onto every registered teacher to form a 360-degree performance view.
+- PWA Engine Migration:
+   - Configured, downloaded, and deployed `@ducanh2912/next-pwa` natively across the active environment.
+   - Initialized global `public/manifest.json` parameter map tracking name spaces, native scaling options, caching, and custom colors.
+   - Set browser `<title>` layout elements identically to the unified formatting `CITE | COLLEGE EVALUATION SYSTEM`.
+   - Utilized Python `PIL` scripts locally to slice and export mathematics-grade `icon-192x192.png` and `icon-512x512.png` transparent circular versions of the official logo into the root `/public/` layer, triggering automatic "Install this page as an app" prompts across Chromium rendering builds automatically.
+- `app/dean/reports/page.tsx`: Destroyed the vertical sidebar holding `Completion Rate` / `Avg Score` metrics blocks and formally flattened the responsive grid container to scale horizontally uniformly taking up full screen width.
+
 ---
 
 ## Coding Standards

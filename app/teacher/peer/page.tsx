@@ -18,10 +18,11 @@ interface PeerEvaluation {
   peerName: string;
   peerDepartment: string;
   dueDate: string;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'locked';
   completedDate?: string;
   responses?: any[];
   comment?: string;
+  formId?: string;
 }
 
 interface FormCriteria {
@@ -41,6 +42,35 @@ export default function PeerEvaluation() {
   const { data: periodData, loading: periodLoading } = useFetch<any>('/evaluation_periods?status=active');
   const [evaluationList, setEvaluationList] = useState<PeerEvaluation[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showReceived, setShowReceived] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [historyFormCache, setHistoryFormCache] = useState<Record<string, any>>({});
+  
+  const { data: receivedData, loading: receivedLoading } = useFetch<any>('/evaluations?role=evaluatee&type=peer');
+  const receivedEvals = receivedData?.evaluations || [];
+
+  const toggleDetails = async (peer: PeerEvaluation) => {
+    if (expandedId === peer.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(peer.id);
+    if (peer.formId && !historyFormCache[peer.formId]) {
+      try {
+        const token = sessionStorage.getItem('auth_token');
+        const res = await fetch(`/api/forms?id=${peer.formId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.form && data.form.criteria) {
+           const payload = Array.isArray(data.form.criteria) 
+                ? data.form.criteria 
+                : typeof data.form.criteria === 'string' ? JSON.parse(data.form.criteria) : [];
+           setHistoryFormCache(prev => ({ ...prev, [peer.formId!]: payload }));
+        }
+      } catch (err) { console.error(err); }
+    }
+  };
 
   // Find the active peer-review period and fetch its form
   const [formData, setFormData] = useState<any>(null);
@@ -87,10 +117,11 @@ export default function PeerEvaluation() {
           peerName: e.evaluatee?.name || e.evaluatee_name || 'Unknown',
           peerDepartment: e.evaluatee_department || '',
           dueDate: e.created_at,
-          status: e.status === 'submitted' || e.status === 'locked' ? 'completed' as const : 'pending' as const,
+          status: e.status === 'submitted' ? 'completed' : e.status === 'locked' ? 'locked' : 'pending',
           completedDate: e.submitted_at,
           responses: e.responses || [],
           comment: e.comments || '',
+          formId: e.period?.form_id,
         }));
       setEvaluationList(peers);
     }
@@ -171,7 +202,7 @@ export default function PeerEvaluation() {
   if (evalLoading || periodLoading || formLoading) return <DashboardSkeleton />;
 
   const pendingCount = evaluationList.filter(p => p.status === 'pending').length;
-  const completed = evaluationList.filter(p => p.status === 'completed').length;
+  const completed = evaluationList.filter(p => p.status === 'completed' || p.status === 'locked').length;
 
 
 
@@ -191,12 +222,14 @@ export default function PeerEvaluation() {
               You have completed all assigned peer reviews.
             </p>
           </div>
-          {completed > 0 && (
-            <Button variant="primary" size="lg" onClick={() => setShowHistory(true)} className="gap-2 shadow-md px-6 py-3">
-              <MessageSquare className="w-5 h-5" />
-              View History
-            </Button>
-          )}
+          <div className="flex flex-col gap-2">
+            {completed > 0 && (
+              <Button variant="primary" size="lg" onClick={() => setShowHistory(true)} className="gap-2 shadow-md px-6 py-3">
+                <CheckCircle className="w-5 h-5" />
+                View Submissions
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -218,40 +251,156 @@ export default function PeerEvaluation() {
         </div>
 
         {evaluationList
-          .filter(p => p.status === 'completed')
+          .filter(p => p.status === 'completed' || p.status === 'locked')
           .map((peer) => {
+            const isLocked = peer.status === 'locked';
+            const isExpanded = expandedId === peer.id;
+            const criteriaList = peer.formId ? historyFormCache[peer.formId] : null;
+
             const ratings = (peer.responses || []).map((r: any) => Number(r.rating ?? 0)).filter((v: number) => v > 0);
             const avg = ratings.length ? (ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1) : '—';
             return (
-              <Card key={peer.id}>
+              <Card key={peer.id} className={isLocked ? "opacity-75 bg-gray-50 dark:bg-gray-800/50" : ""}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle>{peer.peerName}</CardTitle>
-                      <CardDescription>{peer.peerDepartment} {peer.completedDate ? `• Completed ${new Date(peer.completedDate).toLocaleDateString()}` : ''}</CardDescription>
+                      <CardDescription>
+                        {peer.peerDepartment} 
+                        {!isLocked && peer.completedDate ? ` • Completed ${new Date(peer.completedDate).toLocaleDateString()}` : ''}
+                        {isLocked ? ' • Locked by Administrator' : ''}
+                      </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-blue-600">{avg}/5</span>
-                      <Badge variant="success">Completed</Badge>
+                       {!isLocked && <span className="text-lg font-bold text-blue-600">{avg}/5</span>}
+                      <Badge variant={isLocked ? 'secondary' : 'success'}>
+                        {isLocked ? 'Locked' : 'Completed'}
+                      </Badge>
                     </div>
                   </div>
                 </CardHeader>
-                {peer.comment && (
-                  <CardContent>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Comments</p>
-                    <p className="text-gray-700 dark:text-gray-300 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                      {peer.comment}
-                    </p>
-                  </CardContent>
-                )}
+                <CardContent className="space-y-4">
+                  {peer.comment && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Comments</p>
+                      <p className="text-gray-700 dark:text-gray-300 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                        {peer.comment}
+                      </p>
+                    </div>
+                  )}
+
+                  {!isLocked && (peer.responses || []).length > 0 && (
+                    <div>
+                      <Button variant="outline" size="sm" onClick={() => toggleDetails(peer)}>
+                        {isExpanded ? 'Hide Ratings' : 'View Ratings'}
+                      </Button>
+                      
+                      {isExpanded && (
+                        <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                          {(peer.responses || []).map((resp: any, idx: number) => {
+                            let qText = resp.criteriaName || resp.criteria_id || 'Criterion';
+                            if (criteriaList) {
+                              for (const c of criteriaList) {
+                                const q = (c.questions || []).find((queryQ: any) => String(queryQ.id) === String(resp.criteria_id));
+                                if (q) {
+                                  qText = q.text; break;
+                                }
+                              }
+                            }
+                            return (
+                              <div key={idx} className="flex justify-between items-start gap-4">
+                                <span className="text-gray-600 dark:text-gray-300 text-sm">{qText}</span>
+                                <span className="font-semibold text-gray-900 dark:text-white whitespace-nowrap">{resp.rating || resp.score}/5</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
               </Card>
             );
           })}
 
-        {evaluationList.filter(p => p.status === 'completed').length === 0 && (
+        {evaluationList.filter(p => p.status === 'completed' || p.status === 'locked').length === 0 && (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-gray-600 dark:text-gray-400">No completed evaluations yet</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  if (showReceived) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Received Peer Reviews</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
+              View anonymous feedback and ratings given to you by your colleagues
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => setShowReceived(false)}>
+            Back to Evaluations
+          </Button>
+        </div>
+
+        {receivedLoading ? <DashboardSkeleton /> : receivedEvals
+          .filter((e: any) => e.status === 'submitted' || e.status === 'locked')
+          .map((peerEval: any, index: number) => {
+            const ratings = (peerEval.responses || []).map((r: any) => Number(r.rating ?? 0)).filter((v: number) => v > 0);
+            const avg = ratings.length ? (ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1) : '—';
+            
+            return (
+              <Card key={peerEval.id || index}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle>Anonymous Peer Review</CardTitle>
+                      <CardDescription>
+                        {peerEval.submitted_at ? `Received on ${new Date(peerEval.submitted_at).toLocaleDateString()}` : ''}
+                      </CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 mr-2">Average Score</p>
+                      <span className="text-2xl font-bold text-blue-600">{avg}/5</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {peerEval.comments && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Overall Feedback</p>
+                      <p className="text-gray-700 dark:text-gray-300 p-3 bg-gray-50 dark:bg-gray-800 rounded italic">
+                        "{peerEval.comments}"
+                      </p>
+                    </div>
+                  )}
+
+                  {(peerEval.responses || []).length > 0 && (
+                    <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Rating Breakdown</p>
+                      {(peerEval.responses || []).map((resp: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-start gap-4">
+                          <span className="text-gray-600 dark:text-gray-300 text-sm">{resp.criteria_name || 'Criterion'}</span>
+                          <span className="font-semibold text-gray-900 dark:text-white whitespace-nowrap">{resp.rating}/5</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+
+        {!receivedLoading && receivedEvals.filter((e: any) => e.status === 'submitted' || e.status === 'locked').length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-gray-600 dark:text-gray-400">You have no received peer reviews yet.</p>
             </CardContent>
           </Card>
         )}
@@ -269,10 +418,12 @@ export default function PeerEvaluation() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="primary" size="lg" onClick={() => setShowHistory(true)} className="gap-2 shadow-md px-6 py-3">
-            <MessageSquare className="w-5 h-5" />
-            View History
-          </Button>
+          {completed > 0 && (
+            <Button variant="primary" size="lg" onClick={() => setShowHistory(true)} className="gap-2 shadow-md px-6 py-3">
+              <CheckCircle className="w-5 h-5" />
+              View Submissions
+            </Button>
+          )}
         </div>
       </div>
       
@@ -316,10 +467,10 @@ export default function PeerEvaluation() {
           {/* Completed Evaluations */}
           {completed > 0 && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Completed Evaluations</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">History</h2>
               <div className="space-y-3">
                 {evaluationList
-                  .filter(p => p.status === 'completed')
+                  .filter(p => p.status === 'completed' || p.status === 'locked')
                   .map((peer) => (
                     <Card key={peer.id} className="opacity-75">
                       <CardContent className="pt-6">
@@ -327,11 +478,13 @@ export default function PeerEvaluation() {
                           <div>
                             <p className="font-semibold text-gray-900 dark:text-white">{peer.peerName}</p>
                             <p className="text-sm text-gray-600 dark:text-gray-400">{peer.peerDepartment}</p>
-                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                              Completed: {peer.completedDate ? new Date(peer.completedDate).toLocaleDateString() : ''}
+                            <p className="text-xs text-gray-500 mt-1">
+                              {peer.status === 'locked' ? 'Locked by Admin' : `Completed: ${peer.completedDate ? new Date(peer.completedDate).toLocaleDateString() : ''}`}
                             </p>
                           </div>
-                          <Badge variant="success">Submitted</Badge>
+                          <Badge variant={peer.status === 'locked' ? 'secondary' : 'success'}>
+                            {peer.status === 'locked' ? 'Locked' : 'Submitted'}
+                          </Badge>
                         </div>
                       </CardContent>
                     </Card>
@@ -401,11 +554,14 @@ export default function PeerEvaluation() {
 
                 <div>
                   <Textarea
-                    label="Detailed Comments"
-                    placeholder="Provide specific, constructive feedback that highlights strengths and areas for improvement..."
+                    label="(Anonymous Feedback) *"
+                    placeholder="Provide constructive feedback or suggestions to improve teaching performance."
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
+                    required
+                    minLength={10}
                   />
+                  <p className="text-xs text-gray-500 mt-1">Minimum 10 characters required (currently {comment.length} / 10)</p>
                 </div>
 
                 <Checkbox label="I confirm this evaluation is honest, fair, and confidential" required />
@@ -417,7 +573,7 @@ export default function PeerEvaluation() {
                   <Button
                     variant="primary"
                     onClick={handleSubmit}
-                    disabled={!isFormComplete || !comment.trim()}
+                    disabled={!isFormComplete || comment.trim().length < 10}
                   >
                     Submit Evaluation
                   </Button>

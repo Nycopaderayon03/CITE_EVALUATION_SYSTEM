@@ -100,7 +100,7 @@ export default function SubjectsPage() {
     if (type === 'success') setTimeout(() => setFeedback(null), 3000);
   };
 
-  const handleSaveToFs = async (newData: any, metadata?: { action: string; oldCode?: string; newCode?: string; newName?: string }) => {
+  const handleSaveToFs = async (newData: any, metadata?: { action: string; oldCode?: string; newCode?: string; newName?: string; newProgram?: string; newYear?: string; newSemester?: string }) => {
     try {
       const token = sessionStorage.getItem('auth_token');
       const res = await fetch('/api/curriculum', {
@@ -170,7 +170,15 @@ export default function SubjectsPage() {
       }
     }
     
-    handleSaveToFs(newData, { action: modalMode, oldCode: modalData.existingCode, newCode: modalData.code, newName: modalData.name });
+    handleSaveToFs(newData, { 
+      action: modalMode, 
+      oldCode: modalData.existingCode, 
+      newCode: modalData.code, 
+      newName: modalData.name,
+      newProgram: modalData.program,
+      newYear: modalData.year,
+      newSemester: modalData.semester
+    });
   };
 
   const handleDelete = (s: any) => {
@@ -188,7 +196,7 @@ export default function SubjectsPage() {
   if (currLoading || !curriculumData) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto p-4">
+    <div className="space-y-8">
       {feedback && <Alert variant={feedback.type}>{feedback.message}</Alert>}
       
       <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">

@@ -47,7 +47,7 @@ export default function TeacherProfile() {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Teacher Profile</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">

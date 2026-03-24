@@ -12,15 +12,106 @@ import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Alert } from '@/components/ui/Alert';
 import type { User } from '@/types';
-import { Search, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+
+// Teacher stats component helper
+function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluations: any[] }) {
+  const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+      {teachers.map(teacher => {
+        const teacherEvals = (evaluations || []).filter(e => e.evaluatee_id === teacher.id && e.status === 'submitted');
+        
+        let totalScore = 0;
+        let count = 0;
+        const studentComments: string[] = [];
+        const peerComments: string[] = [];
+        const adminComments: string[] = [];
+
+        teacherEvals.forEach(ev => {
+          // Calculate score
+          if (ev.responses && ev.responses.length > 0) {
+            const sum = ev.responses.reduce((acc: number, r: any) => acc + Number(r.rating), 0);
+            totalScore += sum / ev.responses.length;
+            count++;
+          }
+
+          // Segregate comments
+          const comment = ev.comments || ev.responses?.find((r: any) => r.comment)?.comment;
+          if (comment) {
+            if (ev.evaluation_type === 'peer') peerComments.push(comment);
+            else if (ev.evaluation_type === 'dean' || ev.is_ghost) adminComments.push(comment);
+            else studentComments.push(comment);
+          }
+        });
+
+        const avgScore = count > 0 ? (totalScore / count).toFixed(2) : 'N/A';
+        const isExpanded = expandedTeacher === teacher.id;
+
+        return (
+          <div key={teacher.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+            <div 
+              className="flex justify-between items-center cursor-pointer"
+              onClick={() => setExpandedTeacher(isExpanded ? null : teacher.id)}
+            >
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{teacher.name}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{teacherEvals.length} total evaluations</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Avg Score</p>
+                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{avgScore}</p>
+                </div>
+                {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+              </div>
+            </div>
+
+            {isExpanded && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Student Comments ({studentComments.length})</h4>
+                  {studentComments.length > 0 ? (
+                    <ul className="list-disc pl-5 space-y-1">
+                      {studentComments.map((c, i) => <li key={i} className="text-sm text-gray-600 dark:text-gray-400 italic">"{c}"</li>)}
+                    </ul>
+                  ) : <p className="text-sm text-gray-500 italic">No feedback</p>}
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Peer Comments ({peerComments.length})</h4>
+                  {peerComments.length > 0 ? (
+                    <ul className="list-disc pl-5 space-y-1">
+                      {peerComments.map((c, i) => <li key={i} className="text-sm text-gray-600 dark:text-gray-400 italic">"{c}"</li>)}
+                    </ul>
+                  ) : <p className="text-sm text-gray-500 italic">No feedback</p>}
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Administrator Comments ({adminComments.length})</h4>
+                  {adminComments.length > 0 ? (
+                    <ul className="list-disc pl-5 space-y-1">
+                      {adminComments.map((c, i) => <li key={i} className="text-sm text-gray-600 dark:text-gray-400 italic">"{c}"</li>)}
+                    </ul>
+                  ) : <p className="text-sm text-gray-500 italic">No feedback</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // users are loaded from the backend via API
 
 
 export default function Users() {
   const { data: usersData, loading: usersLoading, error: usersError } = useFetch<any>('/users');
+  const { data: evalData } = useFetch<any>('/evaluations');
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTeacherStatsOpen, setIsTeacherStatsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'student' as User['role'], course: '', year_level: 0, section: '' });
   const [searchTerm, setSearchTerm] = useState('');
@@ -245,7 +336,10 @@ export default function Users() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-transform hover:-translate-y-1 ring-1 ring-transparent hover:ring-green-500/50"
+          onClick={() => setIsTeacherStatsOpen(true)}
+        >
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Teachers</p>
@@ -436,6 +530,7 @@ export default function Users() {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         title={editingUser ? 'Edit User' : 'Add User'}
+        size="2xl"
       >
         <div className="space-y-4">
           <Input
@@ -450,7 +545,6 @@ export default function Users() {
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="Enter email address"
-            disabled={!!editingUser}
           />
           <Input
             label={editingUser ? "Password (leave blank to keep current)" : "Password"}
@@ -534,6 +628,22 @@ export default function Users() {
               {editingUser ? 'Save Changes' : 'Create User'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Teacher Stats Modal */}
+      <Modal 
+        isOpen={isTeacherStatsOpen} 
+        onClose={() => setIsTeacherStatsOpen(false)} 
+        title="Instructor Analytics & Feedback"
+        size="3xl"
+      >
+        <TeacherStatsMap 
+          teachers={users.filter(u => String(u.role).toLowerCase() === 'teacher')} 
+          evaluations={evalData?.evaluations || []} 
+        />
+        <div className="flex justify-end pt-4 mt-6 border-t border-gray-200 dark:border-gray-700">
+          <Button variant="secondary" onClick={() => setIsTeacherStatsOpen(false)}>Close</Button>
         </div>
       </Modal>
     </div>

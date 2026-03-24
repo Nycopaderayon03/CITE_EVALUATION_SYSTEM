@@ -100,7 +100,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, year_level, section, course, password, oldPassword, role } = body;
+    const { id, name, email, year_level, section, course, password, oldPassword, role } = body;
 
     const targetUserId = (decoded.role === 'dean' || decoded.role === 'admin') && id ? id : decoded.userId;
 
@@ -130,6 +130,7 @@ export async function PATCH(request: NextRequest) {
     const updates: string[] = [];
     const params: any[] = [];
     if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+    if (email !== undefined) { updates.push('email = ?'); params.push(email); }
     if (year_level !== undefined) { updates.push('year_level = ?'); params.push(year_level); }
     if (section !== undefined) { updates.push('section = ?'); params.push(section); }
     if (course !== undefined) { updates.push('course = ?'); params.push(course); }

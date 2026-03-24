@@ -315,8 +315,7 @@ const ReportsComponent = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3 space-y-8">
+      <div className="space-y-8">
           {/* Report Types */}
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Generate Reports</h2>
@@ -468,67 +467,7 @@ const ReportsComponent = () => {
           </div>
         </CardContent>
       </Card>
-      </div>
 
-        <div className="lg:col-span-1 space-y-4 flex flex-col">
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span>📈</span> Completion Rate
-                  </p>
-                  <p className="text-3xl font-bold text-green-600">{completionRateCalc}%</p>
-                  <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-500"
-                      style={{ width: `${Math.min(100, Math.max(0, completionRateCalc))}%` }}
-                    />
-                  </div>
-                </div>
-                <Badge variant={completionRateCalc > 80 ? 'success' : completionRateCalc > 50 ? 'warning' : 'destructive'}>
-                  {completionRateCalc > 80 ? 'Good' : completionRateCalc > 50 ? 'Ok' : 'Low'}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span>⭐</span> Avg Score
-                  </p>
-                  <p className="text-3xl font-bold text-blue-600">{avgScoreCalc.toFixed(1)}/5.0</p>
-                  <div className="flex items-center gap-1 mt-1">
-                    {Array.from({ length: 5 }).map((_, idx) => (
-                      <span key={idx} className={idx < Math.round(avgScoreCalc) ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}>
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <Badge variant="success">{avgScoreCalc >= 4 ? 'Great' : avgScoreCalc >= 3 ? 'Good' : 'Needs work'}</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span>📄</span> Reports Generated
-                  </p>
-                  <p className="text-3xl font-bold text-purple-600">{reportHistory.length}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Recent downloads</p>
-                </div>
-                <Badge variant="secondary">{reportHistory.length > 0 ? 'Active' : 'None'}</Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
 
       <Modal

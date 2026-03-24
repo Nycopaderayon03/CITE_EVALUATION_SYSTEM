@@ -14,7 +14,7 @@ import { getRoleDashboardPath } from '@/utils/helpers';
 export default function LoginPage() {
   const router = useRouter();
   const { login, setUserFromApi, setToken } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -84,14 +84,14 @@ export default function LoginPage() {
 
   if (!mounted) return null;
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-950' : 'bg-white'} transition-colors duration-300 flex flex-col lg:flex-row`}>
+    <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-300 flex flex-col lg:flex-row">
       {/* Dark Mode Toggle */}
       <button
-        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
         className="fixed top-6 right-6 z-50 p-3 rounded-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
         aria-label="Toggle dark mode"
       >
-        {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
       </button>
 
       {/* Left Panel - Institution Information */}

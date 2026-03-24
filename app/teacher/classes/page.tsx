@@ -16,29 +16,58 @@ export default function TeacherClasses() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses?history=true');
+  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations?role=evaluatee&history=true');
 
   const { user } = useAuth();
   const teacherId = user?.id;
-  const teacherCourses = (coursesData?.courses || []).filter((c:any) => 
-    (showHistory ? Number(c.is_archived) === 1 : Number(c.is_archived) === 0)
+  
+  const baseCourses = coursesData?.courses || [];
+  const implicitCourses = (evalData?.evaluations || []).reduce((acc: any[], evaluation: any) => {
+    if (evaluation.course_id && !acc.find((c: any) => c.id === evaluation.course_id)) {
+      acc.push({
+        id: evaluation.course_id,
+        name: evaluation.course_name || evaluation.course?.name,
+        code: evaluation.course_code || evaluation.course?.code,
+        semester: evaluation.period?.semester || evaluation.semester,
+        course_program: evaluation.period?.course_program,
+        year_level: evaluation.period?.year_level,
+        is_archived: evaluation.is_archived,
+      });
+    }
+    return acc;
+  }, []);
+
+  const mergedCourses = [...baseCourses];
+  implicitCourses.forEach((ic: any) => {
+    const existing = mergedCourses.find(mc => mc.id === ic.id);
+    if (!existing) {
+      mergedCourses.push(ic);
+    } else if (Number(ic.is_archived || 0) === 0 && Number(existing.is_archived || 0) === 1) {
+      // If an active evaluation exists for an ironically archived course, forcefully unarchive it in the local view for consistency
+      existing.is_archived = 0;
+    }
+  });
+
+  const teacherCourses = mergedCourses.filter((c:any) => 
+    (showHistory ? Number(c.is_archived || 0) === 1 : Number(c.is_archived || 0) === 0)
   );
 
   const filteredCourses = teacherCourses.filter((c: any) =>
-    c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (c.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (coursesLoading) return <DashboardSkeleton />;
+  if (coursesLoading || evalLoading) return <DashboardSkeleton />;
 
   // Group courses by semester for better organization
   const coursesBySemester = filteredCourses.reduce((acc: any, course: any) => {
     let sem = 'Unassigned';
     if (course.semester) {
-      if (typeof course.semester === 'number') {
-        sem = `${course.semester}${course.semester === 1 ? 'st' : course.semester === 2 ? 'nd' : course.semester === 3 ? 'rd' : 'th'} Semester`;
-      } else {
-        sem = course.semester; // Already 1st Semester, 2nd Semester, etc.
-      }
+      const num = Number(course.semester);
+      if (num === 1) sem = '1st Semester';
+      else if (num === 2) sem = '2nd Semester';
+      else if (num === 3) sem = 'Summer';
+      else sem = String(course.semester);
     }
     if (!acc[sem]) acc[sem] = [];
     acc[sem].push(course);
@@ -149,14 +178,6 @@ export default function TeacherClasses() {
                             )}
                           </CardDescription>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-1.5 hidden md:flex shrink-0"
-                          onClick={() => router.push('/teacher/results')}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" /> Results
-                        </Button>
                       </div>
                     </CardHeader>
                   </Card>

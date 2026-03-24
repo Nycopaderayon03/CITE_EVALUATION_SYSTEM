@@ -129,9 +129,13 @@ export async function POST(request: NextRequest) {
             !selectedCodes.length
           ) continue;
 
+          const semesterStr = period.semester === 1 ? '1st Semester' 
+            : period.semester === 2 ? '2nd Semester' 
+            : period.semester === 3 ? 'Summer' : period.semester;
+
           const programData = (curriculum as any)[program];
           const yearData = programData?.[yearLevel];
-          const semSubjects: Array<{ code: string; name: string }> = yearData?.[period.semester] || [];
+          const semSubjects: Array<{ code: string; name: string }> = yearData?.[semesterStr] || [];
           const subjectNameMap: Record<string, string> = {};
           for (const s of semSubjects) {
             subjectNameMap[s.code] = s.name;
