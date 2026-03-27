@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
+import { ConfirmPasswordModal } from '@/components/ui/ConfirmPasswordModal';
 import { useFetch } from '@/hooks';
 import {
   Save,
@@ -139,6 +140,21 @@ export default function EvaluationSetupPage() {
     if (entry.type === 'success') {
       setTimeout(() => setSectionFeedback(prev => ({ ...prev, [section]: null })), 5000);
     }
+  };
+
+  const [isConfirmPasswordOpen, setIsConfirmPasswordOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<() => void>(() => () => {});
+  const [confirmModalConfig, setConfirmModalConfig] = useState({ 
+    title: 'Confirm Action', 
+    message: 'Please enter your administrator password to proceed.', 
+    variant: 'primary' as 'primary' | 'danger',
+    confirmText: 'Confirm'
+  });
+
+  const confirmAction = (action: () => void, config: typeof confirmModalConfig) => {
+    setPendingAction(() => action);
+    setConfirmModalConfig(config);
+    setIsConfirmPasswordOpen(true);
   };
 
   const clearFeedback = (section: string) => {
@@ -506,47 +522,24 @@ export default function EvaluationSetupPage() {
   }, [editPeriodId]);
 
   // Delete a draft
-  const deleteDraft = async (id: number) => {
-    if (!confirm('Delete this draft?')) return;
-    try {
-      await fetchApi(`/evaluation_periods?id=${id}`, { method: 'DELETE' });
-      setDrafts(drafts.filter(d => d.id !== id));
-    } catch (err) {
-      showFeedback('section1', { type: 'error', message: `Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}` });
-    }
+  const deleteDraft = (id: number) => {
+    confirmAction(async () => {
+      try {
+        await fetchApi(`/evaluation_periods?id=${id}`, { method: 'DELETE' });
+        setDrafts(drafts.filter(d => d.id !== id));
+      } catch (err) {
+        showFeedback('section1', { type: 'error', message: `Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}` });
+      }
+    }, {
+      title: 'Delete Draft',
+      message: 'Are you sure you want to permanently delete this setup draft?',
+      variant: 'danger',
+      confirmText: 'Delete Draft'
+    });
   };
 
   // ── Start Evaluation ──
-  const startEvaluation = async () => {
-    if (!evalStartDate || !evalEndDate) {
-      showFeedback('section1', { type: 'error', message: 'Set evaluation dates before starting.' });
-      return;
-    }
-    if (dateWarning) {
-      showFeedback('section1', { type: 'error', message: 'Fix date issues before starting.' });
-      return;
-    }
-    if (!selectedFormId) {
-      showFeedback('section1', { type: 'error', message: 'Select an evaluation form before starting.' });
-      return;
-    }
-    if (showInstructorAssignment) {
-      for (const group of groups) {
-        if (!group.program || !group.yearLevel) continue;
-        const missing = group.selectedCodes.filter(code => !group.assignments[code]);
-        if (missing.length > 0) {
-          showFeedback('section2', { type: 'error', message: `Assign instructors to all selected subjects in ${group.program} ${group.yearLevel}. Missing: ${missing.join(', ')}` });
-          return;
-        }
-      }
-    }
-
-    // If status is draft, just save as draft instead of activating
-    if (status === 'draft') {
-      await saveSetup();
-      return;
-    }
-
+  const executeStart = async () => {
     setStarting(true);
     clearFeedback('section3');
     try {
@@ -608,6 +601,44 @@ export default function EvaluationSetupPage() {
     } finally {
       setStarting(false);
     }
+  };
+
+  const startEvaluation = async () => {
+    if (!evalStartDate || !evalEndDate) {
+      showFeedback('section1', { type: 'error', message: 'Set evaluation dates before starting.' });
+      return;
+    }
+    if (dateWarning) {
+      showFeedback('section1', { type: 'error', message: 'Fix date issues before starting.' });
+      return;
+    }
+    if (!selectedFormId) {
+      showFeedback('section1', { type: 'error', message: 'Select an evaluation form before starting.' });
+      return;
+    }
+    if (showInstructorAssignment) {
+      for (const group of groups) {
+        if (!group.program || !group.yearLevel) continue;
+        const missing = group.selectedCodes.filter(code => !group.assignments[code]);
+        if (missing.length > 0) {
+          showFeedback('section2', { type: 'error', message: `Assign instructors to all selected subjects in ${group.program} ${group.yearLevel}. Missing: ${missing.join(', ')}` });
+          return;
+        }
+      }
+    }
+
+    // If status is draft, just save as draft instead of activating
+    if (status === 'draft') {
+      await saveSetup();
+      return;
+    }
+
+    confirmAction(executeStart, {
+      title: 'Start Evaluation',
+      message: 'You are about to launch this evaluation period. This will generate assignments for all students. Enter password to confirm.',
+      variant: 'primary',
+      confirmText: 'Launch Evaluation'
+    });
   };
 
   const isEditMode = !!editPeriodId;
@@ -1202,6 +1233,12 @@ export default function EvaluationSetupPage() {
 
         </CardContent>
       </Card>
+      <ConfirmPasswordModal
+        isOpen={isConfirmPasswordOpen}
+        onClose={() => setIsConfirmPasswordOpen(false)}
+        onConfirm={pendingAction}
+        {...confirmModalConfig}
+      />
     </div>
   );
 }

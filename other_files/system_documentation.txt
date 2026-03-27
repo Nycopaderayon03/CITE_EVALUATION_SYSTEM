@@ -1,0 +1,66 @@
+CHAPTER 7: SYSTEM TESTING AND VALIDATION
+
+7.1 Testing Strategy 
+The testing strategy for the College Evaluation System focuses on ensuring the functionality, usability, and reliability of the application. It employs a comprehensive approach that includes unit testing, integration testing, and user acceptance testing (UAT). Unit testing validates individual components such as API routes, database queries, and UI elements. Integration testing ensures seamless communication between the Next.js frontend and MySQL database. UAT is performed by system administrators, teachers, and students to confirm that the system meets user requirements, workflow expectations, and performs adequately under real-world scenarios.
+
+7.2 Test Cases and Results 
+Test cases were designed to cover various user flows, including authentication, evaluation setup, form submission, and report generation. Key test cases include:
+- Authentication: Validating login for students, teachers, and deans with proper role-based access control. (Pass)
+- Evaluation Setup: Testing the dean's ability to create evaluation periods, assign forms, and map subjects to instructors. (Pass)
+- Form Submission: Ensuring students and peers can successfully submit evaluations and anonymous feedback without data corruption. (Pass)
+- Report Generation: Verifying that PDF and CSV reports are accurately generated and downloadable without data loss or corruption issues. (Pass)
+- Archiving: Validating the global archiving feature to ensure historical data is retained while current views are cleared. (Pass)
+
+7.3 Web Integration Testing 
+Web integration testing focuses on the synchronization between the frontend interfaces and backend APIs. Testing included verifying the Next.js API routes handling data operations, such as retrieving active evaluation periods, submitting JSON-based criteria evaluation responses, and fetching user profiles. Database integration testing ensured that SQL queries efficiently retrieve and update records without deadlocks or extended response times, validating the stable performance of the connection pool `lib/db.ts`.
+
+7.4 Security Testing 
+Security testing prioritized data protection and unauthorized access prevention. Testing covered token-based authentication using JWTs to secure API endpoints, ensuring expired or invalid tokens are properly rejected by the `verifyToken` middleware. General vulnerabilities were tested, validating the utilization of parameterized queries against SQL injections. Testing also ensured that the application prevents unauthorized role escalation, particularly ensuring students cannot access dean or teacher endpoints.
+
+7.5 Error Handling and Troubleshooting 
+Error handling mechanisms were validated to ensure that users receive informative, non-technical error messages when issues occur, using integrated auto-dismissing `Alert` UI components. The system was tested to gracefully handle database connection failures, invalid form entries, and unauthorized access attempts. Troubleshooting logs are actively maintained in the database API logs, ensuring deans can trace activities and system events effectively using the built-in comprehensive audit trails.
+
+
+CHAPTER 8: SYSTEM DEPLOYMENT AND MAINTENANCE
+
+8.1 Deployment Environment 
+The College Evaluation System is deployed in a modern, scalable web environment. The frontend and backend API layers are built using Next.js and Node.js, compiling locally with Turbopack for significantly faster live compilations. The database operates on MySQL, hosting the `cite_es` schema consisting of structured tables for users, evaluations, courses, periods, and system logs. The application is served over HTTPS to ensure secure data transmission and is Progressive Web App (PWA) enabled to appear as a native desktop/mobile application.
+
+8.2 Deployment Steps 
+The deployment process follows a streamlined methodology:
+1. Environment Configuration: Setup environment variables securely (including database credentials and JWT secret keys).
+2. Database Initialization: Execute `database/schema.sql` to initialize the database structure and run seed scripts to populate initial data and the default admin account.
+3. Build Process: Compile the Next.js application for production utilizing standard build commands.
+4. Server Startup: Launch the application server, binding the Next.js application to the designated port.
+5. Verification: Conduct initial health checks on the API and database connections, verifying PWA manifest registration and database connectivity.
+
+8.3 Version Control and CI/CD 
+Version control is maintained using Git, facilitating collaborative development among multiple project contributors. Development adheres to a shared coding standard utilizing disciplined branch merges and code reviews. Agents coordinate updates tightly via a shared collaborative log. Future iterations plan to integrate automated Continuous Integration and Continuous Deployment (CI/CD) pipelines to further ensure code stability and automated testing before full production deployment.
+
+8.4 Maintenance and Monitoring 
+System maintenance involves routine updates to Node.js and Next.js dependencies to patch security vulnerabilities and improve performance. Monitoring includes tracking database performance, server uptime, and user activity, directly observable through the Dean's comprehensive UI audit log dashboard. Regular maintenance also entails using the system's built-in global archive mechanism to safely freeze data, reset dashboards, and seamlessly transition historical records at the end of each academic semester.
+
+
+CHAPTER 9: SECURITY AND PERFORMANCE CONSIDERATIONS
+
+9.1 Security Measures 
+The system employs stringent security measures to protect user data and maintain integrity. The backend API strictly validates JWTs for all authenticated routes and reliably rejects forbidden access. The system enforces Role-Based Access Control (RBAC), ensuring users can only read or mutate records pertinent to their authority level. Furthermore, passwords cannot be arbitrarily reset without old password confirmation, and anonymous feedback submissions are carefully tracked without exposing the evaluator's identity to the target teacher.
+
+9.2 Performance Optimization 
+Performance is optimized through modern development tooling and architecture choices. The integration of Turbopack significantly improves build times and live reload speeds. Database queries are streamlined using proper structuring and optimized data paths. The UI leverages React's component-based architecture for efficient rendering, and PWA support enables effective local caching, reducing network overhead and promoting faster load times on subsequent visits.
+
+9.3 Risk Management 
+Risk management strategies involve proactive identification and mitigation of potential system constraints. Operational risks, such as massive data pileups, are mitigated through the implementation of an end-of-semester global archive function, safely encapsulating historical evaluations without deletion. Unauthorized access risks are minimized by stripping hardcoded administrative escalation options from standard UI flows and systematically checking user claims directly within the server routes before allowing sensitive data updates.
+
+
+CHAPTER 10: SUMMARY AND RECOMMENDATIONS
+
+10.1 Summary of Implementation 
+The College Evaluation System was successfully implemented as a comprehensive platform for managing academic assessments. It actively modernized and streamlined campus processes, supporting student-to-teacher, peer-to-peer, and dean-to-teacher evaluations. The system introduced dynamic form builders mapped via JSON, secure role-based portals, robust uncorrupted report generation (PDF and CSV templates), global data archiving capabilities, and real-time interactive dashboard analytics. The modern interface, accentuated by a global pastel gradient theme, intuitive PWA features, and a supportive chatbot assistant, significantly enhances workflow, utility, and overall user engagement.
+
+10.2 Recommendations 
+Based on the implementation experience, testing outcomes, and initial user feedback, the following recommendations are heavily proposed for future system enhancements:
+1. Advanced Analytics: Integrate more complex computational visualization tools for Deans to automatically cross-analyze long-term historical performance trends efficiently across multiple academic years.
+2. AI-Assisted Feedback Analysis: Implement integrated Natural Language Processing (NLP) models to swiftly summarize qualitative feedback and assess overarching sentiment trends to minimize manual dean review times.
+3. Automated Scheduling Systems: Automate the periodic transition of evaluation status blocks (from upcoming to active to locked) strictly based on chronological triggers without requiring direct manual dean intervention.
+4. Granular Subject Selection: Expand the student auto-enrollment feature currently restricted to block setups, explicitly allowing individual per-subject selection to completely support complex enrollment matrices for irregular students.

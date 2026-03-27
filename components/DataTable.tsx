@@ -78,12 +78,12 @@ export function DataTable<T extends { id: string | number }>({
         <tbody>
           {data.map((row, rowIndex) => (
             <tr
-              key={row.id}
+              key={row.id || `row-${rowIndex}`}
               onClick={() => onRowClick?.(row)}
               className={`border-b border-gray-200 dark:border-gray-700 ${onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50' : ''} transition-colors`}
             >
-              {columns.map((column) => (
-                <td key={`${row.id}-${String(column.key)}`} className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+              {columns.map((column, colIndex) => (
+                <td key={`${row.id || rowIndex}-${String(column.key)}-${colIndex}`} className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                   {column.render ? column.render(row[column.key], row) : String(row[column.key])}
                 </td>
               ))}

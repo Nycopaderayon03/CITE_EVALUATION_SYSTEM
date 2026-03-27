@@ -75,6 +75,7 @@ export default function Evaluations() {
   const { data: usersData } = useFetch<any>('/users');
   const [deanModalOpen, setDeanModalOpen] = useState(false);
   const [deanTeacher, setDeanTeacher] = useState('');
+  const [deanCourse, setDeanCourse] = useState('');
   const [deanCreating, setDeanCreating] = useState(false);
 
   // Automatically load every registered teacher from the system DB
@@ -103,7 +104,7 @@ export default function Evaluations() {
         body: JSON.stringify({
           period_id: selectedPeriod.id,
           evaluatee_id: deanTeacher,
-          course_id: null,
+          course_id: deanCourse || null,
         }),
       });
       setDeanModalOpen(false);
@@ -443,6 +444,8 @@ export default function Evaluations() {
                     <tr>
                       <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Evaluator</th>
                       <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Target Evaluatee</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Program</th>
+                      <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Level</th>
                       <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Target Subject</th>
                       <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Form Type</th>
                       <th className="px-5 py-3.5 text-left font-semibold text-gray-700 dark:text-gray-300">Status</th>
@@ -472,6 +475,16 @@ export default function Evaluations() {
                             </div>
                           </td>
                           <td className="px-5 py-3 text-gray-900 dark:text-gray-200">{evaluateeName}</td>
+                          <td className="px-5 py-3">
+                            <Badge variant="outline" className="text-xs bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-700 dark:text-indigo-400 border-indigo-200/50">
+                              {e.evaluator?.program || '—'}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="text-gray-600 dark:text-gray-400 font-medium">
+                              {e.evaluator?.year ? `${e.evaluator.year}${e.evaluator.year === 1 ? 'st' : e.evaluator.year === 2 ? 'nd' : e.evaluator.year === 3 ? 'rd' : 'th'}` : '—'}
+                            </span>
+                          </td>
                           <td className="px-5 py-3">
                              <div className="flex flex-col">
                                 {courseCode ? <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs tracking-wider">{courseCode}</span> : null}
@@ -610,22 +623,77 @@ export default function Evaluations() {
         )}
 
         {/* Dean Evaluate Modal */}
-        <Modal isOpen={deanModalOpen} onClose={() => setDeanModalOpen(false)} title="Dean Evaluation" size="md">
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Submit an evaluation that blends in anonymously with regular results.
-            </p>
-            <Select
-              label="Select Teacher"
-              value={deanTeacher}
-              onChange={e => setDeanTeacher(e.target.value)}
-              options={deanTeachers.map(t => ({ value: t.id, label: t.name }))}
-              placeholder="Choose a teacher..."
-            />
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setDeanModalOpen(false)}>Cancel</Button>
+        <Modal isOpen={deanModalOpen} onClose={() => setDeanModalOpen(false)} title="Dean Evaluation" size="2xl">
+          <div className="space-y-6">
+            <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+               <div className="flex justify-between items-start">
+                  <div>
+                    <h5 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-widest mb-1">Target Period</h5>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedPeriod?.name}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">AY {selectedPeriod?.academic_year} • {selectedPeriod?.semester}</p>
+                  </div>
+                  <Badge variant="outline" className="bg-white dark:bg-gray-800 text-indigo-600 border-indigo-200">
+                    {selectedPeriod?.form_type === 'peer-review' ? 'Peer Review Form' : 'Faculty Evaluation Form'}
+                  </Badge>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-1">Target Individual</h4>
+                <Select
+                  label="Select Teacher"
+                  value={deanTeacher}
+                  onChange={e => {
+                    setDeanTeacher(e.target.value);
+                    setDeanCourse(''); // Reset course when teacher changes
+                  }}
+                  options={deanTeachers.map(t => ({ value: t.id, label: t.name }))}
+                  placeholder="Choose a faculty member..."
+                />
+                <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                  Note: The evaluation will appear as an anonymous entry in the system to protect the integrity of the data stream.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-1">Academic Context</h4>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Subject (Optional)</label>
+                  <select 
+                    className="w-full p-2.5 rounded-xl border border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer shadow-sm text-sm"
+                    value={deanCourse}
+                    onChange={e => setDeanCourse(e.target.value)}
+                  >
+                    <option value="">No specific subject / General</option>
+                    {periodEvals
+                      .filter((e: any) => e.evaluatee_id === deanTeacher && e.course_id)
+                      .reduce((acc: any[], current: any) => {
+                        const cid = current.course_id;
+                        if (!acc.find(x => x.id === cid)) acc.push({ id: cid, code: current.course_code, name: current.course_name });
+                        return acc;
+                      }, [])
+                      .map((c: any) => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} — {c.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                   <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-tight">
+                     Associating a subject helps in granular reporting but is not required for general faculty assessment.
+                   </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button variant="outline" className="px-6" onClick={() => setDeanModalOpen(false)}>Cancel</Button>
               <Button
                 variant="primary"
+                className="px-8 shadow-lg shadow-blue-500/10"
                 onClick={handleDeanCreate}
                 disabled={deanCreating || !deanTeacher}
                 isLoading={deanCreating}

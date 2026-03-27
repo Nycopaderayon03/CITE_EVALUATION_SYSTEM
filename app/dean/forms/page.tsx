@@ -11,7 +11,9 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Textarea } from '@/components/ui/Textarea';
 import { useFetch } from '@/hooks';
-import { Plus, Edit, Trash2, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { DashboardCard } from '@/components/DashboardCard';
+import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
+import { Plus, Edit, Trash2, ChevronDown, ChevronUp, ArrowLeft, FileText, Users, Award } from 'lucide-react';
 
 type Question = {
   id: string;
@@ -287,28 +289,27 @@ export default function EvaluationFormsPage() {
         </div>
         
         <div className="lg:col-span-1 space-y-4 flex flex-col">
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Forms Saved</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{forms.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Student Evaluations</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {forms.filter((f: any) => f.type === 'student-to-teacher').length}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Peer Evaluations</p>
-              <p className="text-3xl font-bold text-purple-600">
-                {forms.filter((f: any) => f.type === 'peer-review').length}
-              </p>
-            </CardContent>
-          </Card>
+          <DashboardCard 
+            title="Total Forms Saved" 
+            value={<AnimatedCounter endValue={forms.length} />} 
+            footer="Templates in directory"
+            icon={<FileText className="w-6 h-6" />} 
+            color="indigo" 
+          />
+          <DashboardCard 
+            title="Student Evaluations" 
+            value={<AnimatedCounter endValue={forms.filter((f: any) => f.type === 'student-to-teacher').length} />} 
+            footer="Learner feedback"
+            icon={<Users className="w-6 h-6" />} 
+            color="blue" 
+          />
+          <DashboardCard 
+            title="Peer Evaluations" 
+            value={<AnimatedCounter endValue={forms.filter((f: any) => f.type === 'peer-review').length} />} 
+            footer="Faculty reviews"
+            icon={<Award className="w-6 h-6" />} 
+            color="purple" 
+          />
         </div>
       </div>
       <ConfirmModal {...modalProps} />

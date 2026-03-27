@@ -218,6 +218,7 @@ export default function StudentEvaluations() {
             entity_id: selectedEvaluation.evaluatee_id,
             content: comment,
             rating: Math.round(avgRating * 2) / 2,
+            meta_json: JSON.stringify({ subject: selectedEvaluation.course.code })
           }),
         }).catch((err) => { console.error('Error:', err); });
       }

@@ -1,0 +1,63 @@
+﻿web-1  | Γû▓ Next.js 16.1.6
+web-1  | - Local:         http://localhost:8080
+web-1  | - Network:       http://0.0.0.0:8080
+web-1  | 
+web-1  | Γ£ô Starting...
+web-1  | Γ£ô Ready in 93ms
+web-1  | Login attempt: { email: 'admin@jmc.edu.ph' }
+web-1  | User query result: [
+web-1  |   {
+web-1  |     id: 'admin-1',
+web-1  |     name: 'Admin User',
+web-1  |     email: 'admin@jmc.edu.ph',
+web-1  |     role: 'dean',
+web-1  |     course: 'BSIT',
+web-1  |     year_level: null,
+web-1  |     section: null
+web-1  |   }
+web-1  | ]
+web-1  | Email login error: Error: secretOrPrivateKey must have a value
+web-1  |     at r.exports [as sign] (.next/server/chunks/_38890489._.js:1:50746)
+web-1  |     at i (.next/server/chunks/_38890489._.js:1:53636)
+web-1  |     at A (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:3290)
+web-1  |     at async N (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:2504)
+web-1  |     at async u (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:8747)
+web-1  |     at async l (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:9788)
+web-1  | Login attempt: { email: 'admin@jmc.edu.ph' }
+web-1  | User query result: [
+web-1  |   {
+web-1  |     id: 'admin-1',
+web-1  |     name: 'Admin User',
+web-1  |     email: 'admin@jmc.edu.ph',
+web-1  |     role: 'dean',
+web-1  |     course: 'BSIT',
+web-1  |     year_level: null,
+web-1  |     section: null
+web-1  |   }
+web-1  | ]
+web-1  | Email login error: Error: secretOrPrivateKey must have a value
+web-1  |     at r.exports [as sign] (.next/server/chunks/_38890489._.js:1:50746)
+web-1  |     at i (.next/server/chunks/_38890489._.js:1:53636)
+web-1  |     at A (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:3290)
+web-1  |     at async N (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:2504)
+web-1  |     at async u (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:8747)
+web-1  |     at async l (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:9788)
+web-1  | Login attempt: { email: 'admin@jmc.edu.ph' }
+web-1  | User query result: [
+web-1  |   {
+web-1  |     id: 'admin-1',
+web-1  |     name: 'Admin User',
+web-1  |     email: 'admin@jmc.edu.ph',
+web-1  |     role: 'dean',
+web-1  |     course: 'BSIT',
+web-1  |     year_level: null,
+web-1  |     section: null
+web-1  |   }
+web-1  | ]
+web-1  | Email login error: Error: secretOrPrivateKey must have a value
+web-1  |     at r.exports [as sign] (.next/server/chunks/_38890489._.js:1:50746)
+web-1  |     at i (.next/server/chunks/_38890489._.js:1:53636)
+web-1  |     at A (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:3290)
+web-1  |     at async N (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:2504)
+web-1  |     at async u (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:8747)
+web-1  |     at async l (.next/server/chunks/[root-of-the-server]__ee625b06._.js:1:9788)

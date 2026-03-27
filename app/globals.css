@@ -12,7 +12,7 @@ html.dark {
 
 @layer base {
   body {
-    @apply bg-gradient-to-r from-[#e4c4f9] to-[#fcfaff] dark:from-[#2d1b42] dark:to-[#110a1a] text-gray-900 dark:text-white transition-colors min-h-screen;
+    @apply bg-gradient-to-br from-[#f3e8ff] via-[#fdfaff] to-white dark:from-[#1a0b2e] dark:via-[#110a1a] dark:to-black text-gray-900 dark:text-white transition-colors min-h-screen;
   }
 
   * {

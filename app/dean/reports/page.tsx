@@ -18,20 +18,43 @@ const generatePDFReport = (title: string, filename: string, data: any[], headers
     const doc = new jsPDF();
     const reportDate = new Date().toLocaleString();
     
-    // Add Header
+    // Institutional Header (from screenshot)
+    // Add logos
+    try {
+      doc.addImage('/icons/JMCLOGO-removebg-preview.png', 'PNG', 14, 8, 22, 22);
+      doc.addImage('/icons/LOGO2-removebg-preview.png', 'PNG', 174, 8, 22, 22);
+    } catch (e) {
+      console.error('Logo loading failed', e);
+    }
+
     doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text('COLLEGE EVALUATION SYSTEM', 14, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('JOSE MARIA COLLEGE', 105, 15, { align: 'center' });
     
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Philippine-Japan Friendship Highway, Sasa, Davao City', 105, 20, { align: 'center' });
+    doc.text('Telefax no. (082) 234-7272 Email: Info@jmc.edu.ph', 105, 24, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('College of Information Technology Education', 105, 30, { align: 'center' });
+    
+    // Divider line
+    doc.setLineWidth(0.5);
+    doc.line(14, 34, 196, 34);
+    
+    // Report Title & Meta
     doc.setFontSize(14);
-    doc.setTextColor(50);
-    doc.text(title, 14, 30);
+    doc.setTextColor(41, 128, 185);
+    doc.text(title.toUpperCase(), 14, 42);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Generated On: ${reportDate}`, 14, 38);
+    doc.text(`System: COLLEGE EVALUATION SYSTEM`, 14, 48);
+    doc.text(`Generated On: ${reportDate}`, 14, 52);
     
-    let currentY = 45;
+    let currentY = 58;
 
     if (headers && headers.length > 0) {
       // Single table mode
@@ -113,6 +136,9 @@ const ReportsComponent = () => {
 
 
   const [previewReportId, setPreviewReportId] = useState<string | null>(null);
+  const { data: usersData } = useFetch<any>('/users');
+  const [selectedInstructorId, setSelectedInstructorId] = useState<string>('');
+  const teachers = (usersData?.users || []).filter((u: any) => u.role === 'teacher');
   const [previewContent, setPreviewContent] = useState<string>('');
   const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
@@ -240,6 +266,94 @@ const ReportsComponent = () => {
     previewReport('Course Report Preview', [], getCourseSections());
   };
 
+
+  const getAuditSections = () => {
+    const rawData = evalData?.evaluations || [];
+    const rows = rawData
+      .filter((e: any) => e.status === 'submitted' || e.status === 'locked')
+      .map((e: any) => {
+        const ratings = (e.responses || []).map((r: any) => Number(r.rating || 0)).filter((v: number) => v > 0);
+        const avg = ratings.length ? (ratings.reduce((a: number, b: number) => a + Number(b), 0) / ratings.length).toFixed(1) : '—';
+        return {
+          evaluator: e.evaluator_name || e.evaluator?.name || 'Anonymous',
+          target: e.evaluatee_name || e.evaluatee?.name || '—',
+          subject: e.course_code || e.course?.code || '—',
+          score: avg,
+          comment: e.comments || 'No comment provided.'
+        };
+      });
+
+    return [
+      { title: 'Individual Evaluation Details', headers: ['evaluator', 'target', 'subject', 'score', 'comment'], data: rows },
+      { title: 'Summary Statistics', headers: ['metric', 'value'], data: [
+        { metric: 'Total Processed Submissions', value: rows.length },
+        { metric: 'Average Overall Satisfaction', value: avgScoreCalc.toFixed(2) }
+      ]}
+    ];
+  };
+
+  const handleAuditReport = async () => {
+    setGenerating('audit');
+    generatePDFReport(
+      'Full Evaluation Audit Report',
+      `audit-report-${new Date().toISOString().split('T')[0]}.pdf`,
+      getAuditSections()
+    );
+    addToHistory('Full Audit Report ' + new Date().toLocaleDateString(), 'audit');
+    setGenerating(null);
+  };
+
+  const previewAuditReport = () => {
+    previewReport('Full Audit Preview', [], getAuditSections());
+  };
+
+  const getIndividualInstructorSections = (id: string) => {
+    const instructor = teachers.find((u: any) => u.id === id);
+    const evaluations = (evalData?.evaluations || []).filter((e: any) => e.evaluatee_id === id && (e.status === 'submitted' || e.status === 'locked'));
+    
+    const performanceRows = evaluations.map((e: any) => {
+        const ratings = (e.responses || []).map((r: any) => Number(r.rating || 0)).filter((v: number) => v > 0);
+        const avg = ratings.length ? (ratings.reduce((a: number, b: number) => a + Number(b), 0) / ratings.length).toFixed(1) : '—';
+        return {
+           period: e.period?.name || 'Current',
+           subject: e.course_code || e.course?.code || 'Peer Review',
+           evaluator: e.evaluator_role?.toUpperCase() || 'STUDENT',
+           avgScore: avg
+        };
+    });
+
+    const comments = evaluations.filter(e => e.comments && e.comments.trim()).map(e => ({
+        subject: e.course_code || e.course?.code || 'N/A',
+        feedback: e.comments
+    }));
+
+    return [
+       { title: `Instructor: ${instructor?.name || 'N/A'}`, headers: ['property', 'value'], data: [
+           { property: 'Department', value: instructor?.department || 'CITE' },
+           { property: 'Instructor ID', value: instructor?.id || '—' }
+       ]},
+       { title: 'Performance Metrics by Subject', headers: ['period', 'subject', 'evaluator', 'avgScore'], data: performanceRows },
+       { title: 'Detailed Qualitative Feedback', headers: ['subject', 'feedback'], data: comments }
+    ];
+  };
+
+  const handleIndividualReport = async () => {
+    if (!selectedInstructorId) return;
+    const instructor = teachers.find((u: any) => u.id === selectedInstructorId);
+    setGenerating('individual');
+    generatePDFReport(
+      `Individual Report: ${instructor?.name || ''}`,
+      `instructor-performance-${selectedInstructorId}-${new Date().toISOString().split('T')[0]}.pdf`,
+      getIndividualInstructorSections(selectedInstructorId)
+    );
+    addToHistory(`Individual Report (${instructor?.name || 'Teacher'})`, 'teacher');
+    setGenerating(null);
+  };
+
+  const previewIndividualReport = () => {
+    if (!selectedInstructorId) return;
+    previewReport('Individual Performance Preview', [], getIndividualInstructorSections(selectedInstructorId));
+  };
 
   const addToHistory = (name: string, type: string) => {
     const next = [
@@ -419,13 +533,87 @@ const ReportsComponent = () => {
                   disabled={generating === 'course'}
                 >
                   <Download className="w-4 h-4" />
-                  {generating === 'course' ? 'Generating...' : 'Generate Course Report'}
+                  {generating === 'course' ? 'Generating...' : 'Download Course Report'}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-
+          <Card className="hover:shadow-lg transition-shadow duration-150">
+            <CardHeader>
+              <CardTitle>📊 Detailed Audit Report</CardTitle>
+              <CardDescription>Full log of evaluation scores and feedback</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                • Evaluator and evaluatee names<br />
+                • Real-time score syncing<br />
+                • Full qualitative comments/feedback<br />
+                • Subject-specific identifiers
+              </p>
+              <div className="flex flex-col md:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={previewAuditReport}
+                  disabled={!evalData?.evaluations?.length}
+                >
+                  <Eye className="w-4 h-4" />
+                  Preview Report
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1 gap-2"
+                  onClick={handleAuditReport}
+                  disabled={generating === 'audit'}
+                >
+                  <Download className="w-4 h-4" />
+                  {generating === 'audit' ? 'Generating...' : 'Download Full Audit Report'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-lg transition-shadow duration-150 border-purple-100 dark:border-purple-900/30">
+            <CardHeader className="bg-purple-50/30 dark:bg-purple-900/10">
+              <CardTitle>👤 Individual Instructor Report</CardTitle>
+              <CardDescription>Surgical performance profile for a specific teacher</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Select Teacher</label>
+                <select
+                  className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  value={selectedInstructorId}
+                  onChange={(e) => setSelectedInstructorId(e.target.value)}
+                >
+                  <option value="">Choose an instructor...</option>
+                  {teachers.map(teacher => (
+                    <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={previewIndividualReport}
+                  disabled={!selectedInstructorId}
+                >
+                  <Eye className="w-4 h-4" />
+                  Preview
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1 gap-2 bg-purple-600 hover:bg-purple-700 border-purple-600"
+                  onClick={handleIndividualReport}
+                  disabled={generating === 'individual' || !selectedInstructorId}
+                >
+                  <Download className="w-4 h-4" />
+                  {generating === 'individual' ? 'Calculating...' : 'Generate Profile'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 

@@ -16,7 +16,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useConfirmModal } from '@/components/ui/ConfirmModal';
 import { useAuth } from '@/context/AuthContext';
-import { Plus, Pencil, Trash2, CheckCircle, Archive, Lock, Unlock } from 'lucide-react';
+import { DashboardCard } from '@/components/DashboardCard';
+import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
+import { Plus, Pencil, Trash2, CheckCircle, Archive, Lock, Unlock, CalendarDays } from 'lucide-react';
 
 interface AcademicPeriod {
   id: number;
@@ -404,29 +406,10 @@ export default function AcademicPage() {
             </CardContent>
           </Card>
         </div>
-        <div className="lg:col-span-1 space-y-4 flex flex-col">
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Periods</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{periods.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Active Period</p>
-              <p className="text-xl font-bold text-blue-600">
-                {periods.find(p => p.is_active)?.name || 'None'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Archived</p>
-              <p className="text-3xl font-bold text-orange-600">
-                {periods.filter(p => p.is_archived).length}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="lg:col-span-1 space-y-6">
+          <DashboardCard title="Total Periods" value={<AnimatedCounter endValue={periods.length} />} footer="Academic sessions" icon={<CalendarDays className="w-6 h-6" />} color="indigo" />
+          <DashboardCard title="Active Periods" value={<AnimatedCounter endValue={periods.filter(p => p.is_active).length} />} footer="Currently running" icon={<CheckCircle className="w-6 h-6" />} color="emerald" />
+          <DashboardCard title="Archived Periods" value={<AnimatedCounter endValue={periods.filter(p => p.is_archived).length} />} footer="Locked history" icon={<Archive className="w-6 h-6" />} color="orange" />
         </div>
       </div>
 

@@ -54,8 +54,21 @@ export default function DeanDashboard() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Dean Dashboard</h1>
-        {/* Top dashboard buttons removed as requested */}
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Dean Dashboard</h1>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {activePeriod?.academic_year && (
+              <Badge variant="secondary" className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                S.Y. {activePeriod.academic_year}
+              </Badge>
+            )}
+            {activePeriod?.semester && (
+              <Badge variant="outline" className="px-2 py-0.5 text-xs font-medium border-gray-300 dark:border-gray-700">
+                {activePeriod.semester}
+              </Badge>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -112,14 +125,14 @@ export default function DeanDashboard() {
             value={<AnimatedCounter endValue={totalStudents} />}
             footer="Registered students"
             icon={<Users className="w-6 h-6" />}
-            color="blue"
+            color="indigo"
           />
           <DashboardCard
             title="Total Teachers"
             value={<AnimatedCounter endValue={totalTeachers} />}
-            footer="Active instructors"
+            footer="Active faculty members"
             icon={<Users className="w-6 h-6" />}
-            color="blue"
+            color="purple"
           />
         </div>
       </div>

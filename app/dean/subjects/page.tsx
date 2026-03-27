@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
+import { ConfirmPasswordModal } from '@/components/ui/ConfirmPasswordModal';
 import { Pencil, Trash2, Plus } from 'lucide-react';
 import { useFetch } from '@/hooks';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
@@ -40,6 +41,21 @@ export default function SubjectsPage() {
   const [modalData, setModalData] = useState({ code: '', name: '', existingCode: '', year: '', semester: '', existingYear: '', existingSemester: '', program: '', existingProgram: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const [isConfirmPasswordOpen, setIsConfirmPasswordOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<() => void>(() => () => {});
+  const [confirmModalConfig, setConfirmModalConfig] = useState({ 
+    title: 'Confirm Action', 
+    message: 'Please enter your administrator password to proceed.', 
+    variant: 'primary' as 'primary' | 'danger',
+    confirmText: 'Confirm'
+  });
+
+  const confirmAction = (action: () => void, config: typeof confirmModalConfig) => {
+    setPendingAction(() => action);
+    setConfirmModalConfig(config);
+    setIsConfirmPasswordOpen(true);
+  };
 
   const yearLevels = useMemo(() => {
     return [
@@ -122,13 +138,7 @@ export default function SubjectsPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!modalData.program || !modalData.year || !modalData.semester) {
-      showFeedback('error', 'Target system nodes missing for execution.');
-      return;
-    }
-    
+  const executeSubmit = () => {
     setIsSaving(true);
     const newData = JSON.parse(JSON.stringify(curriculumData));
     
@@ -181,16 +191,37 @@ export default function SubjectsPage() {
     });
   };
 
-  const handleDelete = (s: any) => {
-    if (!confirm(`Are you sure you want to delete ${s.code}?`)) return;
-    setIsSaving(true);
-    const newData = JSON.parse(JSON.stringify(curriculumData));
-    const targetArr = newData[program as any][s.year][s.semester];
-    const idx = targetArr.findIndex((x: any) => x.code === s.code);
-    if (idx !== -1) {
-      targetArr.splice(idx, 1);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalData.program || !modalData.year || !modalData.semester) {
+      showFeedback('error', 'Target system nodes missing for execution.');
+      return;
     }
-    handleSaveToFs(newData, { action: 'delete', oldCode: s.code });
+    
+    confirmAction(executeSubmit, {
+      title: modalMode === 'add' ? 'Add Subject' : 'Update Subject',
+      message: `You are about to ${modalMode === 'add' ? 'add' : 'update'} a subject in the curriculum. Enter your password to confirm.`,
+      variant: 'primary',
+      confirmText: 'Save Subject'
+    });
+  };
+
+  const handleDelete = (s: any) => {
+    confirmAction(() => {
+      setIsSaving(true);
+      const newData = JSON.parse(JSON.stringify(curriculumData));
+      const targetArr = newData[program as any][s.year][s.semester];
+      const idx = targetArr.findIndex((x: any) => x.code === s.code);
+      if (idx !== -1) {
+        targetArr.splice(idx, 1);
+      }
+      handleSaveToFs(newData, { action: 'delete', oldCode: s.code });
+    }, {
+      title: 'Delete Subject',
+      message: `Are you sure you want to delete ${s.code}? This action is irreversible.`,
+      variant: 'danger',
+      confirmText: 'Delete Now'
+    });
   };
 
   if (currLoading || !curriculumData) return <DashboardSkeleton />;
@@ -395,6 +426,13 @@ export default function SubjectsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmPasswordModal
+        isOpen={isConfirmPasswordOpen}
+        onClose={() => setIsConfirmPasswordOpen(false)}
+        onConfirm={pendingAction}
+        {...confirmModalConfig}
+      />
     </div>
   );
 }

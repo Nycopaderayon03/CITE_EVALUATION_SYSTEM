@@ -11,8 +11,11 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Alert } from '@/components/ui/Alert';
+import { DashboardCard } from '@/components/DashboardCard';
+import { ConfirmPasswordModal } from '@/components/ui/ConfirmPasswordModal';
+import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
 import type { User } from '@/types';
-import { Search, Plus, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Lock, GraduationCap, ShieldCheck, BookOpen, Users } from 'lucide-react';
 
 // Teacher stats component helper
 function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluations: any[] }) {
@@ -30,14 +33,11 @@ function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluati
         const adminComments: string[] = [];
 
         teacherEvals.forEach(ev => {
-          // Calculate score
           if (ev.responses && ev.responses.length > 0) {
             const sum = ev.responses.reduce((acc: number, r: any) => acc + Number(r.rating), 0);
             totalScore += sum / ev.responses.length;
             count++;
           }
-
-          // Segregate comments
           const comment = ev.comments || ev.responses?.find((r: any) => r.comment)?.comment;
           if (comment) {
             if (ev.evaluation_type === 'peer') peerComments.push(comment);
@@ -65,11 +65,11 @@ function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluati
             >
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{teacher.name}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{teacherEvals.length} total evaluations</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{teacherEvals.length} evaluations</p>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Avg Score</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Score</p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{avgScore}</p>
                 </div>
                 {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
@@ -79,7 +79,7 @@ function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluati
             {isExpanded && (
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Student Comments ({studentComments.length})</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Student Feedback ({studentComments.length})</h4>
                   {studentComments.length > 0 ? (
                     <ul className="list-disc pl-5 space-y-1">
                       {studentComments.map((c, i) => <li key={i} className="text-sm text-gray-600 dark:text-gray-400 italic">"{c}"</li>)}
@@ -87,18 +87,10 @@ function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluati
                   ) : <p className="text-sm text-gray-500 italic">No feedback</p>}
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Peer Comments ({peerComments.length})</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Peer Feedback ({peerComments.length})</h4>
                   {peerComments.length > 0 ? (
                     <ul className="list-disc pl-5 space-y-1">
                       {peerComments.map((c, i) => <li key={i} className="text-sm text-gray-600 dark:text-gray-400 italic">"{c}"</li>)}
-                    </ul>
-                  ) : <p className="text-sm text-gray-500 italic">No feedback</p>}
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Administrator Comments ({adminComments.length})</h4>
-                  {adminComments.length > 0 ? (
-                    <ul className="list-disc pl-5 space-y-1">
-                      {adminComments.map((c, i) => <li key={i} className="text-sm text-gray-600 dark:text-gray-400 italic">"{c}"</li>)}
                     </ul>
                   ) : <p className="text-sm text-gray-500 italic">No feedback</p>}
                 </div>
@@ -111,10 +103,7 @@ function TeacherStatsMap({ teachers, evaluations }: { teachers: User[], evaluati
   );
 }
 
-// users are loaded from the backend via API
-
-
-export default function Users() {
+export default function UserManagementPage() {
   const { data: usersData, loading: usersLoading, error: usersError } = useFetch<any>('/users');
   const { data: evalData } = useFetch<any>('/evaluations');
   const [users, setUsers] = useState<User[]>([]);
@@ -128,6 +117,21 @@ export default function Users() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [isConfirmPasswordOpen, setIsConfirmPasswordOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<() => void>(() => () => {});
+  const [confirmModalConfig, setConfirmModalConfig] = useState({ 
+    title: 'Confirm Action', 
+    message: 'Please enter your administrator password to proceed.', 
+    variant: 'primary' as 'primary' | 'danger',
+    confirmText: 'Confirm'
+  });
+
+  const confirmAction = (action: () => void, config: typeof confirmModalConfig) => {
+    setPendingAction(() => action);
+    setConfirmModalConfig(config);
+    setIsConfirmPasswordOpen(true);
+  };
+
   const displaySuccess = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 3000);
@@ -138,25 +142,12 @@ export default function Users() {
     setTimeout(() => setErrorMsg(''), 3000);
   };
 
-  // Debug log for API response
   useEffect(() => {
-    console.log('Raw usersData from API:', usersData);
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
-    }
-  }, [usersData, usersError]);
-  useEffect(() => {
-    if (usersData?.users) {
-      setUsers(usersData.users);
-    }
+    if (usersData?.users) setUsers(usersData.users);
   }, [usersData]);
-
-  // users state is managed based on API response (this effect is now merged above)
 
   if (usersLoading) return <DashboardSkeleton />;
 
-
-  // Filter users based on search and role filter
   const filteredUsers = users.filter(user => {
     const matchSearch = searchTerm === '' || 
       user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -165,9 +156,6 @@ export default function Users() {
     const matchRole = roleFilter === 'all' || user.role === roleFilter;
     return matchSearch && matchRole;
   });
-
-  // Debug log for duplicate key error
-  console.log('Filtered User IDs:', filteredUsers.map(u => u.id));
 
   const openAdd = () => {
     setEditingUser(null);
@@ -180,7 +168,7 @@ export default function Users() {
     setForm({ 
       name: user.name || '', 
       email: user.email || '', 
-      password: '', // Blank by default, only sent if typed
+      password: '', 
       role: user.role,
       course: user.course || '',
       year_level: (user as any).year_level || 0,
@@ -189,107 +177,121 @@ export default function Users() {
     setIsModalOpen(true);
   };
 
-  const saveUser = async () => {
-    if (!form.name?.trim() || !form.email?.trim()) {
-      return displayError('Name and email are required');
-    }
-    if (!editingUser && !form.password?.trim()) {
-      return displayError('Password is required for new users');
-    }
-
+  const executeSave = async () => {
     try {
       const token = sessionStorage.getItem('auth_token');
-      const url = '/api/users';
-      const payload: any = {
-        name: form.name,
-        email: form.email,
-        role: form.role,
-        course: form.course || null,
-        year_level: form.year_level || null,
-        section: form.section || null,
-        password: form.password || undefined // Only send if set
-      };
-
+      const payload: any = { ...form };
       if (editingUser) {
         payload.id = editingUser.id;
-        const res = await fetch(url, {
+        const res = await fetch('/api/users', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
-
-        setUsers(prev => prev.map(u => (u.id === editingUser.id ? { ...u, ...payload } : u)));
+        setUsers(prev => prev.map(u => (u.id === editingUser.id ? data.user : u)));
         displaySuccess('User updated successfully!');
       } else {
-        const res = await fetch(url, {
+        const res = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
-
         setUsers(prev => [...prev, data.user]);
         displaySuccess('User created successfully!');
       }
-
       setIsModalOpen(false);
     } catch (err: any) {
       displayError(err.message || 'Operation failed');
     }
   };
 
-  const deleteUser = async (id: string) => {
-    if (!id || !confirm('Delete this user? This action cannot be undone.')) return;
-    
-    try {
-      const token = sessionStorage.getItem('auth_token');
-      const res = await fetch(`/api/users?id=${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+  const saveUser = () => {
+    if (!form.name?.trim() || !form.email?.trim()) return displayError('Name and email are required');
+    confirmAction(executeSave, {
+      title: editingUser ? 'Confirm Edit' : 'Confirm Creation',
+      message: `You are about to ${editingUser ? 'update' : 'create'} a user account. Enter your password to proceed.`,
+      variant: 'primary',
+      confirmText: editingUser ? 'Update User' : 'Create User'
+    });
+  };
 
-      setUsers(prev => prev.filter(u => u.id !== id));
-      displaySuccess('User deleted successfully!');
-    } catch (err: any) {
-      displayError(err.message || 'Deletion failed');
-    }
+  const deleteUser = (id: string) => {
+    confirmAction(async () => {
+      try {
+        const token = sessionStorage.getItem('auth_token');
+        const res = await fetch(`/api/users?id=${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        setUsers(prev => prev.filter(u => u.id !== id));
+        displaySuccess('User deleted successfully!');
+      } catch (err: any) {
+        displayError(err.message || 'Deletion failed');
+      }
+    }, {
+      title: 'Delete User',
+      message: 'This user and their history will be permanently erased. Enter password to confirm.',
+      variant: 'danger',
+      confirmText: 'Delete Now'
+    });
   };
 
   const bulkDelete = () => {
-    if (!selectedUsers || selectedUsers.length === 0) {
-      displayError('Please select users to delete');
-      return;
-    }
-    if (!confirm(`Delete ${selectedUsers.length} users? This cannot be undone.`)) return;
-    setUsers((prev) => prev.filter((u) => !selectedUsers.includes(u.id)));
-    setSelectedUsers([]);
-    displaySuccess('Users deleted successfully!');
+    confirmAction(async () => {
+      try {
+        const token = sessionStorage.getItem('auth_token');
+        for (const id of selectedUsers) {
+          await fetch(`/api/users?id=${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+        setUsers(prev => prev.filter(u => !selectedUsers.includes(u.id)));
+        displaySuccess('Selected users deleted successfully!');
+        setSelectedUsers([]);
+      } catch (err: any) {
+        displayError(err.message || 'Bulk deletion failed');
+      }
+    }, {
+      title: 'Bulk Delete',
+      message: `Delete ${selectedUsers.length} user(s)? Enter password to confirm.`,
+      variant: 'danger',
+      confirmText: 'Delete All'
+    });
   };
 
   const bulkChangeRole = (newRole: User['role']) => {
-    if (!selectedUsers || selectedUsers.length === 0) {
-      displayError('Please select users');
-      return;
-    }
-    setUsers((prev) =>
-      prev.map((u) => (selectedUsers.includes(u.id) ? { ...u, role: newRole } : u))
-    );
-    setSelectedUsers([]);
-    displaySuccess(`Role updated for ${selectedUsers.length} users!`);
+    confirmAction(async () => {
+      try {
+        const token = sessionStorage.getItem('auth_token');
+        for (const id of selectedUsers) {
+          await fetch('/api/users', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ id, role: newRole })
+          });
+        }
+        setUsers(prev => prev.map(u => selectedUsers.includes(u.id) ? { ...u, role: newRole } : u));
+        displaySuccess('Roles updated successfully!');
+        setSelectedUsers([]);
+      } catch (err: any) {
+        displayError(err.message || 'Bulk change failed');
+      }
+    }, {
+      title: 'Bulk Change Role',
+      message: `Change ${selectedUsers.length} user(s) to ${newRole}? Enter password to confirm.`,
+      variant: 'primary',
+      confirmText: 'Change Now'
+    });
   };
 
-  const toggleUserSelection = (userId: string) => {
-    setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
+  const toggleUserSelection = (id: string) => setSelectedUsers(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const stats = {
     total: users.length,
@@ -300,103 +302,36 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage system users and assign roles</p>
+          <h1 className="text-4xl font-black text-gray-900 dark:text-white">User Management</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1 font-medium">Manage and monitor all system accounts</p>
         </div>
-        <div className="flex gap-2">
-
-          <Button variant="primary" size="lg" className="gap-2 text-lg shadow-md hover:shadow-lg transition-shadow" onClick={openAdd}>
-            <Plus className="w-5 h-5" />
-            Add User
-          </Button>
-        </div>
+        <Button variant="primary" size="lg" className="px-8 shadow-lg" onClick={openAdd}>
+          <Plus className="w-5 h-5 mr-2" /> Add User
+        </Button>
       </div>
 
-      {successMsg && (
-        <Alert variant="success" className="animate-in fade-in slide-in-from-top-4">
-          {successMsg}
-        </Alert>
-      )}
-
-      {errorMsg && (
-        <Alert variant="error" className="animate-in fade-in slide-in-from-top-4">
-          {errorMsg}
-        </Alert>
-      )}
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Users</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Students</p>
-              <p className="text-3xl font-bold text-blue-600">{stats.students}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-transform hover:-translate-y-1 ring-1 ring-transparent hover:ring-green-500/50"
-          onClick={() => setIsTeacherStatsOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setIsTeacherStatsOpen(true);
-            }
-          }}
-          tabIndex={0}
-          role="button"
-        >
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Teachers</p>
-              <p className="text-3xl font-bold text-green-600">{stats.teachers}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Administrators</p>
-              <p className="text-3xl font-bold text-purple-600">{stats.admins}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <DashboardCard title="Total Users" value={<AnimatedCounter endValue={stats.total} />} footer="Accounts registered" icon={<Users className="w-6 h-6" />} color="indigo" />
+        <DashboardCard title="Students" value={<AnimatedCounter endValue={stats.students} />} footer="Learners assigned" icon={<GraduationCap className="w-6 h-6" />} color="blue" />
+        <DashboardCard title="Teachers" value={<AnimatedCounter endValue={stats.teachers} />} footer="Click to view analytics" icon={<BookOpen className="w-6 h-6" />} color="emerald" onClick={() => setIsTeacherStatsOpen(true)} />
+        <DashboardCard title="Administrators" value={<AnimatedCounter endValue={stats.admins} />} footer="Secure handlers" icon={<ShieldCheck className="w-6 h-6" />} color="purple" />
       </div>
 
-      {/* Users List */}
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>Manage system users and their roles</CardDescription>
+          <CardTitle>Directory</CardTitle>
+          <CardDescription>Filtering {filteredUsers.length} of {users.length} total</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="space-y-4">
-            {/* Search and Filter */}
-            <div className="flex gap-2 flex-col md:flex-row md:items-center">
+            <div className="flex gap-2 flex-col md:flex-row">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+                <Input placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" autoComplete="off" />
               </div>
-              <select
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-              >
+              <select className="px-4 py-2 rounded-lg border dark:border-gray-700 bg-white dark:bg-gray-800" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
                 <option value="all">All Roles</option>
                 <option value="student">Students</option>
                 <option value="teacher">Teachers</option>
@@ -404,264 +339,103 @@ export default function Users() {
               </select>
             </div>
 
-            {/* Bulk Actions */}
-            {selectedUsers && selectedUsers.length > 0 && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg flex justify-between items-center">
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                  {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
-                </p>
+            {selectedUsers.length > 0 && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex justify-between items-center animate-in fade-in zoom-in-95">
+                <p className="text-sm font-bold text-blue-900 dark:text-blue-200">{selectedUsers.length} selected</p>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => bulkChangeRole('student')}
-                  >
-                    Make Student
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => bulkChangeRole('teacher')}
-                  >
-                    Make Teacher
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    className="gap-2"
-                    onClick={bulkDelete}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => bulkChangeRole('student')}>Set Student</Button>
+                  <Button variant="outline" size="sm" onClick={() => bulkChangeRole('teacher')}>Set Teacher</Button>
+                  <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="w-4 h-4 mr-2" />Delete</Button>
                 </div>
               </div>
             )}
 
-            {/* Results Count */}
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {filteredUsers.length} of {users.length} users
-            </p>
-
-            {/* Users Table */}
             <DataTable
               columns={[
-                {
-                  key: 'checkbox' as any,
-                  label: '',
-                  render: (_, user: User) => (
-                    <Checkbox
-                      checked={selectedUsers.includes(user.id)}
-                      onChange={() => toggleUserSelection(user.id)}
-                    />
-                  ),
-                },
+                { key: 'checkbox' as any, label: '', render: (_, user: User) => <Checkbox checked={selectedUsers.includes(user.id)} onChange={() => toggleUserSelection(user.id)} /> },
                 { key: 'name' as any, label: 'Name' },
                 { key: 'email' as any, label: 'Email' },
-                {
-                  key: 'role' as any,
-                  label: 'Role',
-                  render: (value: any) => {
-                    const role = String(value || 'student');
-                    let variant: any = 'secondary';
-                    if (role === 'student') variant = 'default';
-                    else if (role === 'teacher') variant = 'success';
-                    else if (role === 'dean') variant = 'warning';
-                    return (
-                      <Badge variant={variant}>
-                        {role.charAt(0).toUpperCase() + role.slice(1)}
-                      </Badge>
-                    );
-                  },
-                },
-                {
-                  key: 'course' as any,
-                  label: 'Course',
-                  render: (_: any, user: User) => (
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {user.course || 'N/A'}
-                    </span>
-                  ),
-                },
-                {
-                  key: 'year_level' as any,
-                  label: 'Year',
-                  render: (_: any, user: any) => (
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {user.year_level || 'N/A'}
-                    </span>
-                  ),
-                },
-                {
-                  key: 'section' as any,
-                  label: 'Section',
-                  render: (_: any, user: any) => (
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {user.section || 'N/A'}
-                    </span>
-                  ),
-                },
-
-                {
-                  key: 'actions' as any,
-                  label: 'Actions',
-                  render: (_: any, row: User) => (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEdit(row);
-                        }}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        className="gap-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteUser(row.id);
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </Button>
-                    </div>
-                  ),
-                },
+                { key: 'role' as any, label: 'Role', render: v => <Badge variant={v === 'teacher' ? 'success' : v === 'dean' ? 'warning' : 'default'}>{String(v).toUpperCase()}</Badge> },
+                { key: 'course' as any, label: 'Program', render: v => v ? <Badge variant="outline" className="font-bold border-indigo-200 text-indigo-700 bg-indigo-50">{String(v)}</Badge> : '—' },
+                { key: 'year_level' as any, label: 'Year', render: v => v ? <span className="text-sm font-semibold text-gray-700">{v}{v == 1 ? 'st' : v == 2 ? 'nd' : v == 3 ? 'rd' : 'th'}</span> : '—' },
+                { key: 'section' as any, label: 'Section', render: v => v ? <Badge variant="secondary" className="font-bold bg-gray-100 text-gray-600">{String(v)}</Badge> : '—' },
+                { key: 'actions' as any, label: 'Actions', render: (_, row: User) => (
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                    <Button variant="outline" size="sm" onClick={() => openEdit(row)}><Edit2 className="w-4 h-4" /></Button>
+                    <Button variant="danger" size="sm" onClick={() => deleteUser(row.id)}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                )},
               ]}
-              data={filteredUsers.map((u) => ({ ...u, id: u.id }))}
+              data={filteredUsers}
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Add/Edit User Modal */}
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={editingUser ? 'Edit User' : 'Add User'}
-        size="2xl"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Full Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Enter full name"
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="Enter email address"
-          />
-          <Input
-            label={editingUser ? "Password (leave blank to keep current)" : "Password"}
-            type="password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder={editingUser ? "••••••••" : "Enter temporary password"}
-          />
-          <div>
-            <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              Role
-            </div>
-            <select
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as User['role'] })}
-            >
-              <option value="student">Student</option>
-              <option value="teacher">Teacher</option>
-            </select>
-          </div>
-
-
-        {form.role === 'student' && (
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Add User'} size="2xl">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            {/* Left Column: Account Identity */}
             <div className="space-y-4">
-              <div>
-                <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Course
-                </div>
-                <select
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  value={form.course}
-                  onChange={(e) => setForm({ ...form, course: e.target.value })}
-                >
-                  <option value="">Select course</option>
-                  <option value="BSIT">BSIT</option>
-                  <option value="BSEMC">BSEMC</option>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 border-b pb-1">Account Identity</h3>
+              <Input label="Full Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="John Doe" autoComplete="off" />
+              <Input label="Institutional Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@jmc.edu.ph" autoComplete="off" />
+              <Input label="Update Password" type="password" value={form.password} placeholder={editingUser ? "(Keep empty to stay same)" : "Initial password"} onChange={e => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
+            </div>
+            
+            {/* Right Column: Academic Details */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 border-b pb-1">Academic Profiling</h3>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Target Role</label>
+                <select className="w-full p-2.5 rounded-xl border border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer shadow-sm" value={form.role} onChange={e => setForm({ ...form, role: e.target.value as any })}>
+                  <option value="student">Student Account</option>
+                  <option value="teacher">Faculty / Teacher</option>
+                  <option value="dean">System Administrator</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assigned Program</label>
+                <select className="w-full p-2.5 rounded-xl border border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer shadow-sm" value={form.course} onChange={e => setForm({ ...form, course: e.target.value })}>
+                  <option value="">N/A (Non-Student)</option>
+                  <option value="BSIT">BSIT Program</option>
+                  <option value="BSEMC">BSEMC Program</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Year Level
-                  </div>
-                  <select
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    value={form.year_level || 0}
-                    onChange={(e) => setForm({ ...form, year_level: Number(e.target.value) })}
-                  >
-                    <option value={0}>Select year</option>
-                    <option value={1}>1st Year</option>
-                    <option value={2}>2nd Year</option>
-                    <option value={3}>3rd Year</option>
-                    <option value={4}>4th Year</option>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Level</label>
+                  <select className="w-full p-2.5 rounded-xl border border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all" value={form.year_level} onChange={e => setForm({ ...form, year_level: Number(e.target.value) })}>
+                    <option value="0">N/A</option>
+                    {[1, 2, 3, 4].map(y => <option key={y} value={y}>{y}{y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'} Year</option>)}
                   </select>
                 </div>
-                <div>
-                  <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Section
-                  </div>
-                  <select
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    value={form.section || ''}
-                    onChange={(e) => setForm({ ...form, section: e.target.value })}
-                  >
-                    <option value="">Select section</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="D">D</option>
-                  </select>
-                </div>
+                <Input label="Section" value={form.section} onChange={e => setForm({ ...form, section: e.target.value.toUpperCase() })} placeholder="A/B/C" />
               </div>
             </div>
-          )}
+          </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={saveUser}>
-              {editingUser ? 'Save Changes' : 'Create User'}
-            </Button>
+          <div className="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-start gap-3">
+             <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">!</div>
+             <p className="text-xs leading-relaxed text-blue-700 dark:text-blue-400">
+               <strong>Sync Notice:</strong> Modifying identity or academic details will automatically trigger an authoritative enrollment refresh for the active S.Y. period. Use caution when updating primary keys.
+             </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" className="px-6" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" className="px-10 shadow-lg shadow-blue-500/10" onClick={saveUser}>Save Changes</Button>
           </div>
         </div>
       </Modal>
 
-      {/* Teacher Stats Modal */}
-      <Modal 
-        isOpen={isTeacherStatsOpen} 
-        onClose={() => setIsTeacherStatsOpen(false)} 
-        title="Instructor Analytics & Feedback"
-        size="3xl"
-      >
-        <TeacherStatsMap 
-          teachers={users.filter(u => String(u.role).toLowerCase() === 'teacher')} 
-          evaluations={evalData?.evaluations || []} 
-        />
-        <div className="flex justify-end pt-4 mt-6 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="secondary" onClick={() => setIsTeacherStatsOpen(false)}>Close</Button>
-        </div>
+      <Modal isOpen={isTeacherStatsOpen} onClose={() => setIsTeacherStatsOpen(false)} title="Teacher Performance Overview" size="3xl">
+        <TeacherStatsMap teachers={users.filter(u => u.role === 'teacher')} evaluations={evalData?.evaluations || []} />
       </Modal>
+
+      <ConfirmPasswordModal isOpen={isConfirmPasswordOpen} onClose={() => setIsConfirmPasswordOpen(false)} onConfirm={pendingAction} {...confirmModalConfig} />
     </div>
   );
 }

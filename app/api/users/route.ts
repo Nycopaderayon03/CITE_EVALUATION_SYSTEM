@@ -144,12 +144,16 @@ export async function PATCH(request: NextRequest) {
     params.push(targetUserId);
     await query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
 
-    // Auto-enroll if student updated year_level or section
+    // Auto-enroll and sync if role or demographic changed
     let enrolledCount = 0;
-    if (user.role === 'student' && (year_level !== undefined || section !== undefined)) {
+    const finalRole = role !== undefined ? role : user.role;
+    const wasDemographicShift = year_level !== undefined || section !== undefined || course !== undefined;
+    const wasRoleShift = role !== undefined && role !== user.role;
+
+    if (finalRole === 'student' && wasDemographicShift) {
       const finalYearLevel = year_level ?? user.year_level;
       const finalSection = section ?? user.section;
-      const program = user.course; // e.g. 'BSIT'
+      const program = course ?? user.course; // e.g. 'BSIT'
 
       if (program && finalYearLevel && finalSection) {
         // Find the active academic period to get semester
@@ -165,7 +169,7 @@ export async function PATCH(request: NextRequest) {
              WHERE ce.student_id = ?
                AND c.course_program = ?
                AND c.semester = ?`,
-            [decoded.userId, program, activePeriod.semester]
+            [targetUserId, program, activePeriod.semester]
           );
 
           // Enroll in matching courses
@@ -177,11 +181,23 @@ export async function PATCH(request: NextRequest) {
                AND c.year_level = ?
                AND c.section = ?
                AND c.semester = ?`,
-            [decoded.userId, program, finalYearLevel, finalSection, activePeriod.semester]
+            [targetUserId, program, finalYearLevel, finalSection, activePeriod.semester]
           );
           enrolledCount = result?.affectedRows || 0;
         }
+
+        // Wipe old/unassigned pending evaluations
+        await query(
+          `DELETE FROM evaluations WHERE evaluator_id = ? AND evaluation_type = 'teacher' AND status = 'pending'`,
+          [targetUserId]
+        );
       }
+    }
+
+    if (wasDemographicShift || wasRoleShift) {
+      // Regenerate dynamically using the new context
+      const { syncUserEvaluations } = await import('@/app/api/evaluations/sync/route');
+      await syncUserEvaluations(targetUserId, finalRole);
     }
 
     const updated: any = await queryOne(
@@ -235,9 +251,34 @@ export async function POST(request: NextRequest) {
       [newId, name, email, password, role, course || null, year_level || null, section || null]
     );
 
+    let enrolledCount = 0;
+    if (role === 'student' && course && year_level && section) {
+      const activePeriod: any = await queryOne(
+        'SELECT id, semester FROM academic_periods WHERE is_active = 1 LIMIT 1'
+      );
+      if (activePeriod) {
+        const result: any = await query(
+          `INSERT IGNORE INTO course_enrollments (course_id, student_id)
+           SELECT c.id, ?
+           FROM courses c
+           WHERE c.course_program = ?
+             AND c.year_level = ?
+             AND c.section = ?
+             AND c.semester = ?`,
+          [newId, course, year_level, section, activePeriod.semester]
+        );
+        enrolledCount = result?.affectedRows || 0;
+      }
+    }
+
+    if (role === 'student' || role === 'teacher') {
+      const { syncUserEvaluations } = await import('@/app/api/evaluations/sync/route');
+      await syncUserEvaluations(newId, role);
+    }
+
     const created: any = await queryOne('SELECT id, name, email, role, course, year_level, section FROM users WHERE id = ?', [newId]);
 
-    return NextResponse.json({ success: true, user: created });
+    return NextResponse.json({ success: true, user: created, enrolledCount });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
   }

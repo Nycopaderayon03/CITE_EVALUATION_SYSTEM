@@ -33,7 +33,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, generated: 0 });
     }
 
-    // Fetch user profile for matching
+    const result = await syncUserEvaluations(userId, role);
+
+    return NextResponse.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Evaluations sync error:', error);
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
+  }
+}
+
+/**
+ * Reusable core logic for generating matching evaluations directly over the user.
+ * Exposed independently for programmatic execution upon demographic shifts.
+ */
+export async function syncUserEvaluations(userId: string, role: string) {
+  let generated = 0;
+  let coursesCreated = 0;
+  let enrollmentsCreated = 0;
+
+  try {
     const user: any = await queryOne('SELECT * FROM users WHERE id = ? AND is_active = 1', [userId]);
     if (!user) {
       return NextResponse.json({ error: 'User not found or inactive' }, { status: 404 });
@@ -199,14 +220,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return {
       generated,
       coursesCreated,
       enrollmentsCreated,
-    });
+    };
   } catch (error) {
-    console.error('Evaluations sync error:', error);
-    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
+    console.error('Core sync error:', error);
+    return { generated, coursesCreated, enrollmentsCreated };
   }
 }

@@ -8,10 +8,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
-import { Users, TrendingUp, Award, FileText, MessageSquare, ArrowRight } from 'lucide-react';
+import { Users, TrendingUp, Award, FileText, MessageSquare, ArrowRight, BookOpen, ShieldCheck } from 'lucide-react';
 import { useFetch } from '@/hooks';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 interface FeedbackItem {
@@ -20,7 +19,10 @@ interface FeedbackItem {
   rating: number;
   date: Date;
   source: 'student' | 'peer' | 'dean' | 'admin';
+  subject?: string | null;
 }
+
+let syncFired = false;
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -28,11 +30,12 @@ export default function TeacherDashboard() {
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [receivedEvals, setReceivedEvals] = useState<any[]>([]);
   const [receivedEvalsLoading, setReceivedEvalsLoading] = useState(true);
-  const [showAllStudentFeedback, setShowAllStudentFeedback] = useState(false);
-  const [showAllPeerFeedback, setShowAllPeerFeedback] = useState(false);
 
   // Just-In-Time: sync missing evaluations for late registrants on dashboard load
   useEffect(() => {
+    if (syncFired) return;
+    syncFired = true;
+
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null;
     if (!token) return;
     const base = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -44,8 +47,9 @@ export default function TeacherDashboard() {
 
   const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses');
   const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations');
-  const { data: analyticsData, loading: analyticsLoading } = useFetch<any>('/analytics');
+  const { data: periodData, loading: periodLoading } = useFetch<any>('/evaluation_periods?status=active');
 
+  const activePeriod = periodData?.periods?.[0] || null;
   const teacherId = user?.id;
 
   // Fetch anonymous comments and received evaluations
@@ -61,13 +65,21 @@ export default function TeacherDashboard() {
       .then(res => res.json())
       .then(data => {
         if (data.success && data.comments) {
-          setFeedbackItems(data.comments.map((c: any) => ({
-            id: c.id,
-            comment: c.content,
-            rating: c.rating || 0,
-            date: new Date(c.created_at),
-            source: c.author_role === 'teacher' ? 'peer' : ['dean', 'admin'].includes(c.author_role) ? 'admin' : 'student',
-          })));
+          setFeedbackItems(data.comments.map((c: any) => {
+            let meta: any = {};
+            try { 
+              if (c.meta_json) meta = typeof c.meta_json === 'string' ? JSON.parse(c.meta_json) : c.meta_json; 
+            } catch(e) {}
+            
+            return {
+              id: c.id,
+              comment: c.content,
+              rating: c.rating || 0,
+              date: new Date(c.created_at),
+              source: c.author_role === 'teacher' ? 'peer' : ['dean', 'admin'].includes(c.author_role) ? 'admin' : 'student',
+              subject: meta.subject || null
+            };
+          }));
         }
       })
       .catch((err) => { console.error('Error:', err); });
@@ -99,8 +111,6 @@ export default function TeacherDashboard() {
 
   const assignedCount = assignedCourses.length;
 
-
-  // Compute overall rating from received evaluation responses
   const evaluationAvg = (() => {
     if (!teacherEvals.length) return 0;
     const allRatings: number[] = [];
@@ -113,290 +123,172 @@ export default function TeacherDashboard() {
     return allRatings.length ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : 0;
   })();
 
-  // Peer evaluations pending by this teacher (only those where user is evaluator)
   const peerPending = evalData?.evaluations?.filter((e: any) => e.evaluation_type === 'peer' && e.status === 'pending').length || 0;
-
-  const deptAvg = analyticsData?.analytics?.departmentTrend?.slice(-1)[0]?.score || 0;
-
-  // Split feedback by source
   const studentFeedback = feedbackItems.filter(f => f.source === 'student');
-  const peerFeedback = feedbackItems.filter(f => f.source === 'peer' || f.source === 'admin' || f.source === 'dean');
+  const studentFeedbackAvg = studentFeedback.length ? studentFeedback.reduce((s, f) => s + f.rating, 0) / studentFeedback.length : 0;
 
-  const studentFeedbackAvg = studentFeedback.length
-    ? studentFeedback.reduce((s, f) => s + f.rating, 0) / studentFeedback.length
-    : 0;
-
-  const isLoading = coursesLoading || evalLoading || analyticsLoading || receivedEvalsLoading;
-
-
-
+  const isLoading = coursesLoading || evalLoading || receivedEvalsLoading || periodLoading;
   if (isLoading) return <DashboardSkeleton />;
-
-  // Calculate student satisfaction based on received evaluations
-  const studentSatisfactionData = (() => {
-    const counts = { very: 0, sat: 0, neutral: 0, unsat: 0 };
-    teacherEvals.forEach((e: any) => {
-      const ratings = (e.responses || []).map((r: any) => Number(r.rating ?? 0)).filter((v: number) => v > 0);
-      const avg = ratings.length ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
-      if (avg >= 4.5) counts.very++;
-      else if (avg >= 3.5) counts.sat++;
-      else if (avg >= 2.5) counts.neutral++;
-      else if (avg > 0) counts.unsat++;
-    });
-    const total = teacherEvals.filter(e => {
-      const resp = e.responses || [];
-      return resp.some((r: any) => Number(r.rating ?? 0) > 0);
-    }).length;
-
-    if (!total) return [];
-    const distribution = [
-      { name: 'Very Satisfied', value: Math.round((counts.very / total) * 100) },
-      { name: 'Satisfied', value: Math.round((counts.sat / total) * 100) },
-      { name: 'Neutral', value: Math.round((counts.neutral / total) * 100) },
-      { name: 'Unsatisfied', value: Math.round((counts.unsat / total) * 100) },
-    ];
-    const sum = distribution.reduce((a, v) => a + v.value, 0);
-    const diff = 100 - sum;
-    if (distribution.length && diff !== 0 && sum > 0) {
-      distribution[distribution.length - 1].value += diff;
-    }
-    return distribution;
-  })();
 
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-            Teaching Dashboard
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Welcome back, {user?.name || 'Teacher'}! Here&apos;s your performance overview
-          </p>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Teaching Dashboard</h1>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <p className="text-gray-600 dark:text-gray-400">Welcome back, {user?.name || 'Teacher'}!</p>
+            {activePeriod?.academic_year && (
+              <Badge variant="secondary" className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                S.Y. {activePeriod.academic_year}
+              </Badge>
+            )}
+          </div>
         </div>
-
       </div>
-
-
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Anonymous Student Feedback */}
-          <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Student Feedback</CardTitle>
-              <CardDescription>Anonymous feedback from your students</CardDescription>
-            </div>
-            <Badge variant="secondary">{studentFeedback.length} comments</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {studentFeedback.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-6">
-              No student feedback received yet. Feedback will appear here once students submit evaluations.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {(showAllStudentFeedback ? studentFeedback : studentFeedback.slice(0, 4)).map((item) => (
-                <div key={item.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <span
-                          key={star}
-                          className={`text-lg ${star <= item.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
-                        >
-                          ★
-                        </span>
-                      ))}
-                      <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                        {item.rating}/5
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {item.date.toLocaleDateString()}
-                    </span>
+          {peerPending > 0 && (
+            <Card className="border-red-100 dark:border-red-900/30 overflow-hidden shadow-sm">
+              <CardHeader className="bg-red-50/50 dark:bg-red-900/10 pb-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-lg text-red-800 dark:text-red-300 flex items-center gap-2">📋 Pending Peer Reviews</CardTitle>
+                    <CardDescription>Complete these evaluations for your colleagues</CardDescription>
                   </div>
-                  <p className="text-gray-700 dark:text-gray-300 text-sm">{item.comment}</p>
+                  <Badge variant="destructive" className="font-bold">{peerPending}</Badge>
                 </div>
-              ))}
-              {studentFeedback.length > 4 && !showAllStudentFeedback && (
-                <button
-                  onClick={() => setShowAllStudentFeedback(true)}
-                  className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline text-center pt-2 cursor-pointer"
-                >
-                  + {studentFeedback.length - 4} more comments
-                </button>
-              )}
-              {showAllStudentFeedback && studentFeedback.length > 4 && (
-                <button
-                  onClick={() => setShowAllStudentFeedback(false)}
-                  className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline text-center pt-2 cursor-pointer"
-                >
-                  Show less
-                </button>
-              )}
-            </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3">
+                {evalData.evaluations
+                  .filter((e: any) => e.evaluation_type === 'peer' && e.status === 'pending')
+                  .slice(0, 3)
+                  .map((ev: any) => (
+                    <div key={ev.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm hover:border-red-200 dark:hover:border-red-800 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 flex items-center justify-center font-bold text-sm">
+                          {ev.evaluatee?.name?.charAt(0) || 'P'}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">{ev.evaluatee?.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Peer Evaluation • S.Y. {activePeriod?.academic_year}</p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => router.push('/teacher/peer')}>Evaluate</Button>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Peer & Admin Feedback */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Peer Feedback</CardTitle>
-              <CardDescription>Anonymous feedback from peer and administrator evaluations</CardDescription>
-            </div>
-            <Badge variant="secondary">{peerFeedback.length} comments</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {peerFeedback.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-6">
-              No peer or admin feedback received yet. Feedback will appear here once evaluations are submitted.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {(showAllPeerFeedback ? peerFeedback : peerFeedback.slice(0, 4)).map((item) => (
-                <div key={item.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <span
-                          key={star}
-                          className={`text-lg ${star <= item.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
-                        >
-                          ★
-                        </span>
-                      ))}
-                      <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                        {item.rating}/5
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {item.date.toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-gray-700 dark:text-gray-300 text-sm">{item.comment}</p>
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-600" />
+                    Student Feedback
+                  </CardTitle>
+                  <CardDescription>Anonymous feedback from your students</CardDescription>
                 </div>
-              ))}
-              {peerFeedback.length > 4 && !showAllPeerFeedback && (
-                <button
-                  onClick={() => setShowAllPeerFeedback(true)}
-                  className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline text-center pt-2 cursor-pointer"
-                >
-                  + {peerFeedback.length - 4} more comments
-                </button>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  {studentFeedback.length} comments
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {studentFeedback.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-6">No feedback received yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {studentFeedback.slice(0, 4).map((item) => (
+                    <div key={item.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <span key={star} className={`text-lg ${star <= item.rating ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                            ))}
+                          </div>
+                          {item.subject && (
+                            <Badge variant="outline" className="text-[10px] bg-blue-50/50 text-blue-600 border-blue-200">
+                              {item.subject}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-500">{item.date.toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm">{item.comment}</p>
+                    </div>
+                  ))}
+                </div>
               )}
-              {showAllPeerFeedback && peerFeedback.length > 4 && (
-                <button
-                  onClick={() => setShowAllPeerFeedback(false)}
-                  className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline text-center pt-2 cursor-pointer"
-                >
-                  Show less
-                </button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Award className="w-5 h-5 text-indigo-600" />
+                    Peer Feedback
+                  </CardTitle>
+                  <CardDescription>Anonymous collaborative critiques from colleagues and administration</CardDescription>
+                </div>
+                <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  {feedbackItems.filter(f => ['peer', 'admin'].includes(f.source)).length} reviews
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {feedbackItems.filter(f => ['peer', 'admin'].includes(f.source)).length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                   <p className="text-gray-500 dark:text-gray-400 text-sm">No collaborative feedback received yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {feedbackItems.filter(f => ['peer', 'admin'].includes(f.source)).slice(0, 4).map((item) => (
+                    <div key={item.id} className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                         <Award className="w-12 h-12" />
+                      </div>
+                      <div className="flex justify-between items-start mb-2 relative z-10">
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span key={star} className={`text-[10px] ${star <= item.rating ? 'text-yellow-500' : 'text-gray-300'}`}>★</span>
+                          ))}
+                        </div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">{item.date.toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm italic leading-relaxed relative z-10">"{item.comment}"</p>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-4 flex flex-col">
-          {/* Quick Actions */}
-          <Card className="mb-2 hover:shadow-lg transition-shadow duration-150">
-            <CardHeader className="pb-3 border-b border-gray-100 dark:border-gray-800">
+          <Card className="mb-2">
+            <CardHeader className="pb-3 border-b">
               <CardTitle className="text-lg">✨ Quick Links</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-3">
-              <Button 
-                variant="primary" 
-                className="w-full gap-2 shadow-sm"
-                onClick={() => router.push('/teacher/peer')}
-              >
-                <Users className="w-4 h-4" />
-                Peer Evaluation
+              <Button variant="primary" className="w-full gap-2" onClick={() => router.push('/teacher/peer')}>
+                <Users className="w-4 h-4" /> Peer Evaluation
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full gap-2 shadow-sm border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                onClick={() => router.push('/teacher/results')}
-              >
-                <TrendingUp className="w-4 h-4" />
-                View Results
+              <Button variant="outline" className="w-full gap-2" onClick={() => router.push('/teacher/results')}>
+                <TrendingUp className="w-4 h-4" /> View Results
               </Button>
             </CardContent>
           </Card>
 
-          {/* Key Stats Migration */}
-          <DashboardCard
-            title="Overall Rating"
-            value={
-              <span>
-                <AnimatedCounter endValue={Number.isFinite(evaluationAvg) ? evaluationAvg : 0} decimals={1} suffix="/5" />
-              </span>
-            }
-            footer={`Based on ${teacherEvals.filter(e => (e.responses || []).length > 0).length} responses`}
-            icon={<TrendingUp className="w-6 h-6" />}
-            color="green"
-          />
-          <DashboardCard
-            title="Classes Teaching"
-            value={<AnimatedCounter endValue={assignedCount} />}
-            footer="This semester"
-            icon={<Users className="w-6 h-6" />}
-            color="blue"
-          />
-          <DashboardCard
-            title="Student Feedback"
-            value={<AnimatedCounter endValue={Math.round(studentFeedbackAvg * 10) / 10} decimals={1} suffix="/5" />}
-            footer={`${feedbackItems.length} comments`}
-            icon={<MessageSquare className="w-6 h-6" />}
-            color="yellow"
-          />
-          <DashboardCard
-            title="Peer Reviews"
-            value={<AnimatedCounter endValue={peerPending} />}
-            footer="Pending tasks"
-            icon={<Award className="w-6 h-6" />}
-            color="red"
-          />
-
-          {/* Satisfaction Distribution */}
-          {studentSatisfactionData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Student Satisfaction</CardTitle>
-                <CardDescription>Distribution based on received evaluation scores</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {studentSatisfactionData.map((item) => (
-                    <div key={item.name} className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32">{item.name}</span>
-                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                        <div
-                          className={`h-3 rounded-full ${
-                            item.name === 'Very Satisfied' ? 'bg-green-500' :
-                            item.name === 'Satisfied' ? 'bg-blue-500' :
-                            item.name === 'Neutral' ? 'bg-yellow-500' :
-                            'bg-red-500'
-                          }`}
-                          style={{ width: `${item.value}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-12 text-right">{item.value}%</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <DashboardCard title="Overall Rating" value={<AnimatedCounter endValue={evaluationAvg} decimals={1} suffix="/5" />} footer={`Based on ${teacherEvals.length} evaluations`} icon={<TrendingUp className="w-6 h-6" />} color="emerald" />
+          <DashboardCard title="Classes Teaching" value={<AnimatedCounter endValue={assignedCount} />} footer="This semester" icon={<BookOpen className="w-6 h-6" />} color="indigo" />
+          <DashboardCard title="Student Feedback" value={<AnimatedCounter endValue={studentFeedbackAvg} decimals={1} suffix="/5" />} footer={`${studentFeedback.length} comments`} icon={<MessageSquare className="w-6 h-6" />} color="amber" />
+          <DashboardCard title="Peer Requests" value={<AnimatedCounter endValue={peerPending} />} footer="Pending tasks" icon={<Award className="w-6 h-6" />} color="rose" />
         </div>
       </div>
     </div>

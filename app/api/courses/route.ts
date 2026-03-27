@@ -88,9 +88,18 @@ export async function GET(request: NextRequest) {
       is_archived: c.is_archived || 0,
     }));
 
+    // Deduplicate response to prevent UI glitches if DB has redundant records from race conditions
+    const uniqueCoursesMap = new Map();
+    formattedCourses.forEach((c: any) => {
+      const key = `${c.code}-${c.section}-${c.instructor_id}`;
+      if (!uniqueCoursesMap.has(key)) {
+        uniqueCoursesMap.set(key, c);
+      }
+    });
+
     return NextResponse.json({
       success: true,
-      courses: formattedCourses,
+      courses: Array.from(uniqueCoursesMap.values()),
     });
   } catch (error) {
     console.error('Get courses error:', error);

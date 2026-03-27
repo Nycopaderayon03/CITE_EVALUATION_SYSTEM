@@ -44,6 +44,20 @@ export async function GET(request: NextRequest) {
     const filterPeriodId = url.searchParams.get('period_id');
     const filterId = url.searchParams.get('id');
 
+    const deduplicate = (evals: any[]) => {
+      const map = new Map();
+      (evals || []).forEach(e => {
+        const key = `${e.period_id}-${e.evaluator_id}-${e.evaluatee_id}-${e.course_code}-${e.evaluation_type}`;
+        const existing = map.get(key);
+        if (!existing) {
+          map.set(key, e);
+        } else if (e.status === 'submitted' || e.status === 'locked') {
+          map.set(key, e);
+        }
+      });
+      return Array.from(map.values()).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    };
+
     let evaluations: any;
     if (decoded.role === 'dean') {
       // dean sees all evaluations (completed or not) with full response details
@@ -51,7 +65,9 @@ export async function GET(request: NextRequest) {
         `SELECT e.id, e.course_id, e.period_id, e.evaluatee_id, e.evaluator_id, e.evaluation_type, e.status, e.comments,
                 c.name as course_name, c.code as course_code,
                 u.name as evaluatee_name,
-                ev.name as evaluator_name
+                ev.name as evaluator_name,
+                ev.course as evaluator_program,
+                ev.year_level as evaluator_year
          FROM evaluations e
          LEFT JOIN courses c ON e.course_id = c.id
          LEFT JOIN users u ON e.evaluatee_id = u.id
@@ -79,6 +95,7 @@ export async function GET(request: NextRequest) {
       }
       base += ' ORDER BY e.created_at DESC';
       evaluations = await query(base, params);
+      evaluations = deduplicate(evaluations);
       // attach responses for each
       const withResp = await Promise.all(
         (evaluations || []).map(async (evaluation: any) => {
@@ -97,7 +114,11 @@ export async function GET(request: NextRequest) {
           return {
             ...evaluation,
             responses: responses || [],
-            evaluator: { name: evaluation.evaluator_name },
+            evaluator: { 
+              name: evaluation.evaluator_name, 
+              program: evaluation.evaluator_program,
+              year: evaluation.evaluator_year 
+            },
             evaluatee: { name: evaluation.evaluatee_name },
             form: { type: evaluation.evaluation_type },
             course: { name: evaluation.course_name, code: evaluation.course_code },
@@ -144,6 +165,7 @@ export async function GET(request: NextRequest) {
       }
       base += ' ORDER BY e.created_at DESC';
       evaluations = await query(base, params);
+      evaluations = deduplicate(evaluations);
     }
 
     // Get responses for each evaluation

@@ -13,7 +13,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { useFetch } from '@/hooks';
-import { ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { DashboardCard } from '@/components/DashboardCard';
+import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
+import { ChevronDown, ChevronUp, Users, BookOpen, GraduationCap } from 'lucide-react';
 
 type CurriculumProgram = 'BSIT' | 'BSEMC';
 
@@ -264,26 +266,27 @@ export default function ClassesPage() {
 
         {/* Sidebar Metrics */}
         <div className="lg:col-span-1 space-y-4 flex flex-col">
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Classes</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{classes.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Enrolled</p>
-              <p className="text-3xl font-bold text-blue-600">{totalStudents}</p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-lg transition-shadow duration-150">
-            <CardContent className="pt-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Active Programs</p>
-              <p className="text-3xl font-bold text-purple-600">
-                {[...new Set(classes.map(c => c.program))].length}
-              </p>
-            </CardContent>
-          </Card>
+          <DashboardCard 
+            title="Total Classes" 
+            value={<AnimatedCounter endValue={classes.length} />} 
+            footer="Active course blocks"
+            icon={<BookOpen className="w-6 h-6" />} 
+            color="emerald" 
+          />
+          <DashboardCard 
+            title="Total Enrolled" 
+            value={<AnimatedCounter endValue={totalStudents} />} 
+            footer="Learners registered"
+            icon={<Users className="w-6 h-6" />} 
+            color="indigo" 
+          />
+          <DashboardCard 
+            title="Active Programs" 
+            value={<AnimatedCounter endValue={[...new Set(classes.map(c => c.program))].length} />} 
+            footer="Academic tracks"
+            icon={<GraduationCap className="w-6 h-6" />} 
+            color="purple" 
+          />
         </div>
       </div>
     </div>

@@ -190,7 +190,7 @@ export default function DeanEvaluationFill() {
   const isEditMode = evaluation?.status === 'submitted';
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="sm" onClick={() => router.push('/dean/evaluations')} className="gap-1">
           <ArrowLeft className="w-4 h-4" /> Back

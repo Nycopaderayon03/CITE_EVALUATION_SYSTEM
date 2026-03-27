@@ -220,17 +220,16 @@ export async function GET(request: NextRequest) {
         `SELECT u.id, u.name, AVG(er.rating) as avg_score
          FROM evaluation_responses er
          JOIN evaluations e ON er.evaluation_id = e.id
-         JOIN courses c ON e.course_id = c.id
-         JOIN users u ON c.teacher_id = u.id
-         WHERE e.status = 'submitted'
-         GROUP BY u.id
+         JOIN users u ON e.evaluatee_id = u.id
+         WHERE e.status = 'submitted' AND u.role = 'teacher'
+         GROUP BY u.id, u.name
          ORDER BY avg_score DESC
          LIMIT 5`
       );
       const topInstructors = (instructorsResult || []).map((r: any, idx: number) => ({
         rank: idx + 1,
         instructor: { name: r.name },
-        overallScore: Number.parseFloat(r.avg_score).toFixed ? Number.parseFloat(r.avg_score).toFixed(2) : r.avg_score,
+        overallScore: Number.parseFloat(r.avg_score || 0).toFixed(2),
       }));
 
       analytics = {

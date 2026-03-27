@@ -1,0 +1,9 @@
+TABLE 7.1: System Testing and Validation Results
+
+| Test Case Name      | Description / Objective                                                                                              | Status |
+|---------------------|----------------------------------------------------------------------------------------------------------------------|--------|
+| Authentication      | Validating login for students, teachers, and deans with proper role-based access control.                            | Pass   |
+| Evaluation Setup    | Testing the dean's ability to create evaluation periods, assign forms, and map subjects to instructors.              | Pass   |
+| Form Submission     | Ensuring students and peers can successfully submit evaluations and anonymous feedback without data corruption.      | Pass   |
+| Report Generation   | Verifying that PDF and CSV reports are accurately generated and downloadable without data loss or corruption issues. | Pass   |
+| Archiving           | Validating the global archiving feature to ensure historical data is retained while current views are cleared.       | Pass   |

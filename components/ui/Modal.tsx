@@ -31,11 +31,9 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="fixed inset-0 bg-black/50 dark:bg-black/70"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40" onClick={onClose}></div>
+
       <div
         className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-lg z-50 w-full mx-4 ${sizeMap[size]} ${className}`}
       >

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
     }
 
-    let sqlQuery = 'SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, u.role as author_role, c.content, c.rating, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.entity_type = ? AND c.entity_id = ?';
+    let sqlQuery = 'SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, u.role as author_role, c.content, c.rating, c.meta_json, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.entity_type = ? AND c.entity_id = ?';
     if (decoded.role !== 'dean') {
       sqlQuery += ' AND c.is_archived = 0';
     }
@@ -57,13 +57,13 @@ export async function POST(request: NextRequest) {
     if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const body = await request.json();
-    const { entity_type, entity_id, content, rating } = body;
+    const { entity_type, entity_id, content, rating, meta_json } = body;
     if (!entity_type || !entity_id || !content) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
 
     const id = uuidv4();
-    await query('INSERT INTO comments (id, entity_type, entity_id, author_id, content, rating) VALUES (?, ?, ?, ?, ?, ?)', [id, entity_type, entity_id, decoded.userId, content, rating || null]);
+    await query('INSERT INTO comments (id, entity_type, entity_id, author_id, content, rating, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, entity_type, entity_id, decoded.userId, content, rating || null, meta_json || null]);
 
-    const inserted: any = await query('SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, c.content, c.rating, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.id = ?', [id]);
+    const inserted: any = await query('SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, c.content, c.rating, c.meta_json, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.id = ?', [id]);
 
     return NextResponse.json({ success: true, comment: inserted[0] }, { status: 201 });
   } catch (err) {
