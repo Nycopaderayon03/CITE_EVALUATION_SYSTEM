@@ -132,7 +132,8 @@ export default function TeacherResults() {
       text: e.comments,
       date: new Date(e.submitted_at || e.created_at).toLocaleDateString(),
       type: (e.evaluation_type || '').includes('student') ? 'Student' : (e.evaluation_type || '').includes('peer') ? 'Peer' : 'Admin',
-      score: Number(evalAvg(e)).toFixed(1)
+      score: Number(evalAvg(e)).toFixed(1),
+      subject: e.course_code || e.course?.code || null
     }));
 
   return (
@@ -243,6 +244,11 @@ export default function TeacherResults() {
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary">Anonymous</Badge>
+                          {c.subject && (
+                            <Badge variant="outline" className="text-[10px] bg-blue-50/50 text-blue-600 border-blue-200 uppercase font-black px-2">
+                              {c.subject}
+                            </Badge>
+                          )}
                           <span className="text-sm font-semibold text-yellow-500">
                             ★ {c.score}
                           </span>

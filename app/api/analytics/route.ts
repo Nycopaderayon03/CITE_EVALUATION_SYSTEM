@@ -164,6 +164,17 @@ export async function GET(request: NextRequest) {
       }
     } else if (decoded.role === 'dean' || decoded.role === 'admin') {
       // System-wide analytics
+      const url = new URL(request.url);
+      const periodId = url.searchParams.get('periodId');
+      
+      let periodFilter = '';
+      let periodParams: any[] = [];
+      
+      if (periodId && periodId !== 'all') {
+        periodFilter = 'WHERE ep.academic_period_id = ?';
+        periodParams = [periodId];
+      }
+
       const totalUsersResult: any = await query('SELECT COUNT(*) as count FROM users');
       const totalUsers = totalUsersResult[0]?.count || 0;
 
@@ -186,25 +197,31 @@ export async function GET(request: NextRequest) {
       const totalTeachers = roleCounts.find((r: any) => r.role === 'teacher')?.count || 0;
 
       // performance trend by month
-      const trendResult: any = await query(
-        `SELECT DATE_FORMAT(e.submitted_at, '%Y-%m') as period, AVG(er.rating) as avg_score
-         FROM evaluation_responses er
-         JOIN evaluations e ON er.evaluation_id = e.id
-         WHERE e.status = 'submitted' AND e.submitted_at IS NOT NULL
-         GROUP BY DATE_FORMAT(e.submitted_at, '%Y-%m')
-         ORDER BY period`
-      );
+      const trendQuery = `
+        SELECT DATE_FORMAT(e.submitted_at, '%Y-%m') as period, AVG(er.rating) as avg_score
+        FROM evaluation_responses er
+        JOIN evaluations e ON er.evaluation_id = e.id
+        LEFT JOIN evaluation_periods ep ON e.period_id = ep.id
+        WHERE e.status = 'submitted' AND e.submitted_at IS NOT NULL
+        ${periodId && periodId !== 'all' ? 'AND ep.academic_period_id = ?' : ''}
+        GROUP BY DATE_FORMAT(e.submitted_at, '%Y-%m')
+        ORDER BY period
+      `;
+      const trendResult: any = await query(trendQuery, periodParams);
       const performanceTrend = (trendResult || []).map((r: any) => ({ period: r.period, score: Number.parseFloat(r.avg_score) }));
 
-      // program completion by academic year (proxy for program)
-      const programResult: any = await query(
-        `SELECT c.academic_year as program,
+      // program completion by academic year
+      const programQuery = `
+        SELECT c.academic_year as program,
                 COUNT(*) as total,
                 SUM(e.status = 'submitted') as completed
          FROM evaluations e
          JOIN courses c ON e.course_id = c.id
-         GROUP BY c.academic_year`
-      );
+         LEFT JOIN evaluation_periods ep ON e.period_id = ep.id
+         ${periodId && periodId !== 'all' ? 'WHERE ep.academic_period_id = ?' : ''}
+         GROUP BY c.academic_year
+      `;
+      const programResult: any = await query(programQuery, periodParams);
       const programCompletion = (programResult || []).map((r: any) => ({
         name: r.program,
         students: r.total,
@@ -216,16 +233,19 @@ export async function GET(request: NextRequest) {
       const activePeriod = activePeriodResult[0] || null;
 
       // calculate top performing instructors by average rating
-      const instructorsResult: any = await query(
-        `SELECT u.id, u.name, AVG(er.rating) as avg_score
-         FROM evaluation_responses er
-         JOIN evaluations e ON er.evaluation_id = e.id
-         JOIN users u ON e.evaluatee_id = u.id
-         WHERE e.status = 'submitted' AND u.role = 'teacher'
-         GROUP BY u.id, u.name
-         ORDER BY avg_score DESC
-         LIMIT 5`
-      );
+      // Joins through evaluation_periods to filter by academic_period_id if provided
+      const instructorsQuery = `
+        SELECT u.id, u.name, AVG(er.rating) as avg_score
+        FROM users u
+        LEFT JOIN evaluations e ON u.id = e.evaluatee_id 
+             AND e.status = 'submitted'
+             ${periodId && periodId !== 'all' ? 'AND e.period_id IN (SELECT id FROM evaluation_periods WHERE academic_period_id = ?)' : ''}
+        LEFT JOIN evaluation_responses er ON e.id = er.evaluation_id
+        WHERE u.role = 'teacher'
+        GROUP BY u.id, u.name
+        ORDER BY avg_score DESC
+      `;
+      const instructorsResult: any = await query(instructorsQuery, periodParams);
       const topInstructors = (instructorsResult || []).map((r: any, idx: number) => ({
         rank: idx + 1,
         instructor: { name: r.name },

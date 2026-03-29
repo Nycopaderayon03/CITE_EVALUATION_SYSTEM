@@ -14,7 +14,7 @@ import { useConfirmModal } from '@/components/ui/ConfirmModal';
 import { useFetch } from '@/hooks';
 import {
   Search, Eye, ArrowLeft, Lock, Unlock,
-  Pencil, Trash2, XCircle, PlayCircle, UserCheck, RotateCcw,
+  Pencil, Trash2, XCircle, PlayCircle, UserCheck, RotateCcw, Clock,
 } from 'lucide-react';
 
 const fetchApi = async (url: string, options?: RequestInit) => {
@@ -46,6 +46,15 @@ const statusBadge = (status: string) => {
 const formatDate = (d?: string) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const calculateDaysLeft = (endDate?: string) => {
+  if (!endDate) return 0;
+  const deadline = new Date(endDate);
+  deadline.setHours(23, 59, 59, 999);
+  const diff = deadline.getTime() - new Date().getTime();
+  const days = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  return days;
 };
 
 export default function Evaluations() {
@@ -314,7 +323,14 @@ export default function Evaluations() {
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedPeriod.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                {selectedPeriod.name}
+                {selectedPeriod.status === 'active' && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-bold ml-1">
+                    {calculateDaysLeft(selectedPeriod.end_date)} Days Left
+                  </Badge>
+                )}
+              </h1>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 {formatDate(selectedPeriod.start_date)} — {formatDate(selectedPeriod.end_date)} {statusBadge(selectedPeriod.status)}
               </p>
@@ -758,6 +774,7 @@ export default function Evaluations() {
                   <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Name</th>
                   <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Form Type</th>
                   <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Target Range</th>
+                  <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Time Remaining</th>
                   <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Status</th>
                   <th className="px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300">Progress Tracking</th>
                   <th className="px-5 py-4 text-right font-semibold text-gray-700 dark:text-gray-300">Actions</th>
@@ -781,6 +798,16 @@ export default function Evaluations() {
                            <span className="text-gray-900 dark:text-gray-200 font-medium">AY {p.academic_year || '—'} / Sem {p.semester || '—'}</span>
                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(p.start_date)} — {formatDate(p.end_date)}</span>
                         </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        {p.status === 'active' ? (
+                          <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
+                             <Clock className="w-4 h-4" />
+                             {calculateDaysLeft(p.end_date)} Days
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-4">{statusBadge(p.status)}</td>
                       <td className="px-5 py-4">

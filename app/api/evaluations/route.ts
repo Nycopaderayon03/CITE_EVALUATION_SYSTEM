@@ -67,11 +67,13 @@ export async function GET(request: NextRequest) {
                 u.name as evaluatee_name,
                 ev.name as evaluator_name,
                 ev.course as evaluator_program,
-                ev.year_level as evaluator_year
+                ev.year_level as evaluator_year,
+                ep.academic_year, ep.semester, ep.academic_period_id
          FROM evaluations e
          LEFT JOIN courses c ON e.course_id = c.id
          LEFT JOIN users u ON e.evaluatee_id = u.id
-         LEFT JOIN users ev ON e.evaluator_id = ev.id`;
+         LEFT JOIN users ev ON e.evaluator_id = ev.id
+         LEFT JOIN evaluation_periods ep ON e.period_id = ep.id`;
       const conditions: string[] = [];
       const params: any[] = [];
       if (filterId) {

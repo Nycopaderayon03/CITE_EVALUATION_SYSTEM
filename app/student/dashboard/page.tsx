@@ -61,6 +61,7 @@ export default function StudentDashboard() {
       }
     }
   }
+  const deadlineStr = activePeriod?.end_date ? new Date(activePeriod.end_date).toLocaleDateString() : '';
   const daysUntilDeadline = deadline ? Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
 
   const completedEvals = evaluations.filter((e: any) => e.status === 'submitted' || e.status === 'locked');
@@ -181,13 +182,25 @@ export default function StudentDashboard() {
             icon={<CheckCircle className="w-6 h-6" />}
             color="emerald"
           />
-          <DashboardCard
-            title="Days Left"
-            value={<AnimatedCounter endValue={daysUntilDeadline} />}
-            footer={deadline ? `Deadline: ${deadline.toLocaleDateString()}` : 'No deadline'}
-            icon={<Clock className="w-6 h-6" />}
-            color="amber"
-          />
+
+          {activePeriod && (
+            <Card className="relative overflow-hidden border-l-4 border-l-amber-500 shadow-sm">
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Days Left</p>
+                    <div className="text-4xl font-black text-slate-900 dark:text-white mb-2 leading-none">
+                      {daysUntilDeadline < 1 && daysUntilDeadline > 0 ? "Due Today" : daysUntilDeadline}
+                    </div>
+                    <p className="text-[11px] font-semibold text-gray-400">Deadline: {deadlineStr}</p>
+                  </div>
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-2xl">
+                    <Clock className="w-6 h-6 text-amber-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <DashboardCard
             title="Enrolled"
             value={<AnimatedCounter endValue={enrolledCount} />}

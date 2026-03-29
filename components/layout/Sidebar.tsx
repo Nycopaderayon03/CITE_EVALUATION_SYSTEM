@@ -51,7 +51,11 @@ export function Sidebar({ items, title, className = '' }: SidebarProps) {
         } md:block ${className}`}
       >
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
+          <div className="flex items-center justify-center gap-2 mb-4">
+             <img src="/icons/JMCLOGO-removebg-preview.png" alt="Department Logo 1" className="h-10 w-auto" />
+             <img src="/icons/LOGO2-removebg-preview.png" alt="Department Logo 2" className="h-10 w-auto" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white uppercase tracking-tight text-center">{title}</h2>
         </div>
 
         <nav className="p-4 space-y-2">
