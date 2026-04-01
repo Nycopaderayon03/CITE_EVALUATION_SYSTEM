@@ -205,3 +205,4 @@ rm -rf .next/dev/lock
 - [API Reference](docs/API_REFERENCE.md) — All endpoints with examples
 - [Setup Guide](SETUP_GUIDE.md) — Detailed installation and configuration
 - [Login Credentials](docs/LOGIN_CREDENTIALS.md) — Test accounts
+# Rubygrace
