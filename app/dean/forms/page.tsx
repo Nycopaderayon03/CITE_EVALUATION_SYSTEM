@@ -51,6 +51,14 @@ const FORM_TYPES = [
   { value: 'peer-review', label: 'Peer Review' },
 ];
 
+const generateId = () => {
+  if (typeof globalThis !== 'undefined' && typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 export default function EvaluationFormsPage() {
   const { confirm: showConfirm, modalProps, ConfirmModal } = useConfirmModal();
   // View state
@@ -130,21 +138,25 @@ export default function EvaluationFormsPage() {
 
   // Criteria management
   const addCriteria = () => {
-    setCriteria([...criteria, {
-      id: crypto.randomUUID(),
+    const newCriteria: CriteriaRow = {
+      id: generateId(),
       name: '',
       weight: 0,
       maxScore: 5,
       questions: [],
-    }]);
+    };
+
+    setCriteria(prev => [...prev, newCriteria]);
+    setExpandedCriteria(newCriteria.id);
   };
 
   const updateCriteria = (id: string, field: keyof CriteriaRow, value: any) => {
-    setCriteria(criteria.map(c => c.id === id ? { ...c, [field]: value } : c));
+    setCriteria(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
   const removeCriteria = (id: string) => {
-    setCriteria(criteria.filter(c => c.id !== id));
+    setCriteria(prev => prev.filter(c => c.id !== id));
+    setExpandedCriteria(prev => prev === id ? null : prev);
   };
 
   // Question management
@@ -156,12 +168,12 @@ export default function EvaluationFormsPage() {
 
   const addQuestion = () => {
     if (!questionInput.trim() || !activeCriteriaId) return;
-    setCriteria(criteria.map(c => {
+    setCriteria(prev => prev.map(c => {
       if (c.id !== activeCriteriaId) return c;
       return {
         ...c,
         questions: [...c.questions, {
-          id: crypto.randomUUID(),
+          id: generateId(),
           text: questionInput.trim(),
           type: 'rating' as const,
           maxScore: 5,
@@ -172,7 +184,7 @@ export default function EvaluationFormsPage() {
   };
 
   const removeQuestion = (criteriaId: string, questionId: string) => {
-    setCriteria(criteria.map(c => {
+    setCriteria(prev => prev.map(c => {
       if (c.id !== criteriaId) return c;
       return { ...c, questions: c.questions.filter(q => q.id !== questionId) };
     }));

@@ -13,6 +13,7 @@ Add yourself when you start work. Update status as you go.
 | claude-opus | Pre-slice + Slice 1 + Slice 3 + Eval Setup Overhaul | Complete | see Communication Log | 2026-03-18 |
 | copilot | Enrollment Feature | Planning | `agents/copilot/PLAN.md`, `database/schema.sql` | 2026-03-18 |
 | antigravity | Slice 3 | Complete | `app/teacher/layout.tsx`, `app/dean/reports/page.tsx`, `app/globals.css`, `app/dean/dashboard/page.tsx`, `app/dean/forms/page.tsx` | 2026-03-22 |
+| gpt-5-codex | Hotfix (Evaluation Forms) | Complete | `app/dean/forms/page.tsx`, `AGENTS.md` | 2026-04-02 |
 
 ---
 
@@ -272,6 +273,17 @@ Log your changes here so other agents have context. Most recent at the bottom.
    - Set browser `<title>` layout elements identically to the unified formatting `CITE | COLLEGE EVALUATION SYSTEM`.
    - Utilized Python `PIL` scripts locally to slice and export mathematics-grade `icon-192x192.png` and `icon-512x512.png` transparent circular versions of the official logo into the root `/public/` layer, triggering automatic "Install this page as an app" prompts across Chromium rendering builds automatically.
 - `app/dean/reports/page.tsx`: Destroyed the vertical sidebar holding `Completion Rate` / `Avg Score` metrics blocks and formally flattened the responsive grid container to scale horizontally uniformly taking up full screen width.
+
+### gpt-5-codex — 2026-04-02
+**To**: All
+**Topic**: Evaluation Forms "Add Criteria" hotfix
+
+- `app/dean/forms/page.tsx`: Replaced direct `crypto.randomUUID()` calls with a safe `generateId()` helper that falls back to timestamp+random IDs when `randomUUID` is unavailable.
+- `app/dean/forms/page.tsx`: Updated criteria/question mutations to functional `setCriteria(prev => ...)` updates for safer state transitions during rapid edits.
+- `app/dean/forms/page.tsx`: Auto-expands newly added criteria and resets expanded state if that criteria is removed.
+- Validation notes:
+  - `npm run type-check` still fails due a pre-existing issue in `.next/dev/types/app/api/curriculum/route.ts` (`buildCurriculum` export mismatch).
+  - `npm run lint` currently fails because `next lint` is interpreted as a directory argument by the installed Next.js CLI.
 
 ---
 
